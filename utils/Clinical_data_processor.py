@@ -2,6 +2,7 @@ import os
 import win32com
 from tqdm import tqdm
 from win32com import client
+import pandas as pd
 
 '''
 This file is used for preprocessing the private dataset of this study,
@@ -84,10 +85,41 @@ def overwrite_data(cli_data, fat_data, radio_data, summery):
     pass
 
 
+def add_radiomics():
+    src = open('../data/summery.txt', 'r')
+    dst = open('../data/summery_new.txt', 'w')
+    radiomics = pd.read_csv('../raw_data/radiomics/1/liver.csv', skiprows=1)
+    radiomics.drop(radiomics.columns[0], axis=1, inplace=True)
+    for i in range(25):
+        radiomics.drop(radiomics.columns[1], axis=1, inplace=True)
+    # print(radiomics.columns.to_list())
+    # set title
+    titles = src.readline().split()
+    # print(titles)
+    titles = titles[:-5] + radiomics.columns.to_list()[1:]
+    new_titles = ' '.join(titles) + '\n'
+    dst.write(new_titles)
+    for item in src:
+        src_list = item.split(' ')
+        try:
+            row_data = radiomics.loc[radiomics['patientId'] == str(src_list[0])].values.tolist()[0]
+        except:
+            print("error @ " + str(src_list[0]))
+            continue
+
+        new_row = src_list[:-5] + row_data[1:]
+        new_data = ' '.join(new_row) + '\n'
+        dst.write(new_data)
+    src.close()
+    dst.close()
+
+
+
 def _write_without_None(temp_line, sheet, _i, _j, flag, log):
     temp = sheet.Cells(_i, _j).Text
     if not temp.strip():
-        err_msg = "[debug]error_: Nan in " + sheet.Cells(1, _j).Text + "&" + sheet.Cells(2, _j).Text + " -> line:%d"%_i
+        err_msg = "[debug]error_: Nan in " + sheet.Cells(1, _j).Text + "&" + sheet.Cells(2,
+                                                                                         _j).Text + " -> line:%d" % _i
         print(err_msg)
         log.write(err_msg + "\n")
         flag = False
@@ -96,7 +128,7 @@ def _write_without_None(temp_line, sheet, _i, _j, flag, log):
     return temp_line, flag
 
 
-if __name__ == '__main__':
+def main_preprocess():
     assert os.path.exists(TARGET_PATH), "Please cd to the fold named 'utils!' and run the code"
     app = win32com.client.Dispatch('Excel.Application')
     app.Visible = 0
@@ -120,3 +152,7 @@ if __name__ == '__main__':
     WorkBook_Clinical_data.Close()
     WorkBook_Fat.Close()
     WorkBook_Radio.Close()
+
+
+if __name__ == '__main__':
+    add_radiomics()
