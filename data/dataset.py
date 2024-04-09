@@ -11,17 +11,19 @@ class Liver_dataset(torch.utils.data.Dataset):
         print("Dataset init ...")
         self.data_dict = {}  # all details of data
         self.data_list = []  # all uids of data
+        self.data = []       # all value of data
         self.mode = mode
         self.tokenizer = AutoTokenizer.from_pretrained("./models/Bio_ClinicalBERT")
         summery = open(summery_path, 'r')
         titles = summery.readline().split()
         titles = [title.replace('_', ' ') for title in titles]
 
-        # print(titles)
+        # print(titles[60])
         count = 0
         for item in summery:
             count += 1
             single_data_list = item.split()
+            data = [float(x) for x in single_data_list]
             temp_dict = {}
             temp = {}
             for i in range(len(single_data_list)):
@@ -48,7 +50,8 @@ class Liver_dataset(torch.utils.data.Dataset):
 
             self.data_dict.update({uid: temp_dict})
             self.data_list.append(uid)
-
+            self.data.append(data)
+        
         print("Summery loaded --> Feature_num : %d  Data_num : %d" % (len(titles) - 3, count))
 
         summery.close()
@@ -63,6 +66,9 @@ class Liver_dataset(torch.utils.data.Dataset):
         vision = torch.Tensor(array)
         vision_tensor = torch.unsqueeze(vision, 0)
 
+        radio = self.data[index][60:1843]
+        radio_tensor = torch.Tensor(radio)
+
         label = int(self.data_dict[uid]['label'])
         label_tensor = torch.from_numpy(np.array(label)).long()
         if self.mode == 'bert':
@@ -73,6 +79,10 @@ class Liver_dataset(torch.utils.data.Dataset):
             return text_tensor['input_ids'].squeeze(0), text_tensor['token_type_ids'].squeeze(0), text_tensor['attention_mask'].squeeze(0), vision_tensor, label_tensor
         elif self.mode == 'img':
             return None, label_tensor
+        elif self.mode == 'self_supervised':
+            return radio_tensor, vision_tensor
+        elif self.mode == 'fusion_2':
+            return text_tensor['input_ids'].squeeze(0), text_tensor['token_type_ids'].squeeze(0), text_tensor['attention_mask'].squeeze(0), radio_tensor, vision_tensor, label_tensor
         else:
             return None
 

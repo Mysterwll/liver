@@ -35,15 +35,25 @@ from transformers import BertModel, BertConfig, BertTokenizer
 #     print("Output values:", output)
 #     exit()
 
-# model = Vis_only()
-model = Fusion_SelfAttention().to('cuda')
-img = torch.randn((2, 1, 32, 224, 224)).to('cuda')
-tokenizer = AutoTokenizer.from_pretrained("./models/Bio_ClinicalBERT")
-text_bag = tokenizer(('hello world', 'Aloha world'), max_length=512, truncation=True, padding='max_length', return_tensors='pt')
-# text_bag['input_ids'].squeeze(0), text_bag['token_type_ids'].squeeze(0), text_bag['attention_mask'].squeeze(0)
-output = model(text_bag['input_ids'].to('cuda'), text_bag['token_type_ids'].to('cuda'), text_bag['attention_mask'].to('cuda'), img)
-# output = model(img)
-print(output)
-print(output.shape)
-# params = [p for p in model.parameters()]
-# print("step1: " + str(len(params)))
+# # model = Vis_only()
+# model = Fusion_SelfAttention().to('cuda')
+# img = torch.randn((2, 1, 32, 224, 224)).to('cuda')
+# tokenizer = AutoTokenizer.from_pretrained("./models/Bio_ClinicalBERT")
+# text_bag = tokenizer(('hello world', 'Aloha world'), max_length=512, truncation=True, padding='max_length', return_tensors='pt')
+# # text_bag['input_ids'].squeeze(0), text_bag['token_type_ids'].squeeze(0), text_bag['attention_mask'].squeeze(0)
+# output = model(text_bag['input_ids'].to('cuda'), text_bag['token_type_ids'].to('cuda'), text_bag['attention_mask'].to('cuda'), img)
+# # output = model(img)
+# print(output)
+# print(output.shape)
+# # params = [p for p in model.parameters()]
+# # print("step1: " + str(len(params)))
+
+
+if __name__ =='__main__':
+
+    from torch.utils.data import DataLoader
+
+    train_loader = DataLoader(Liver_dataset("./data/summery.txt", mode='self_supervised'), batch_size=1, shuffle=True, num_workers=4, drop_last=True)
+
+    for batch_idx, (radio, img) in enumerate(train_loader):
+        print(f"batch_idx: {batch_idx}  | radio shape: {radio.shape} | ;img shape: {img.shape}")

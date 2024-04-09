@@ -19,12 +19,15 @@ def prepare_to_train(model_selection, batch_size, epochs, optimize_selection, lo
     '''
     Dataset init, You can refer to the dataset format defined in data/dataset.py to define your private dataset
     '''
-    if model_selection >= 6:
+    if model_selection >= 8:
+        dataset = Liver_dataset("./data/summery.txt", mode='self_supervised')
+    elif 7 >= model_selection >= 6:
         dataset = Liver_dataset("./data/summery.txt", mode='fusion')
     elif 6 > model_selection >= 3:
         dataset = Liver_dataset("./data/summery.txt", mode='bert')
     else:
         dataset = Liver_dataset("./data/summery.txt")
+    
     torch.manual_seed(seed if (seed is not None) else 42)
     train_ratio = 0.7
     train_dataset, test_dataset = random_split(dataset, [int(train_ratio * len(dataset)), len(dataset) - int(train_ratio * len(dataset))])
@@ -63,9 +66,20 @@ def prepare_to_train(model_selection, batch_size, epochs, optimize_selection, lo
         model = Fusion_Concat()
     elif model_selection == 7:
         model = Fusion_SelfAttention()
+    elif model_selection == 8:
+        model = Contrastive_Learning()
     else:
         model = Vis_only()
     observer.log(f'Use model : {model_selection} -> {model.name}\n')
+    
+    num_params = 0
+    for p in model.parameters():
+        if p.requires_grad:
+            num_params += p.numel()
+    print("===============================================")
+    print("model parameters: " + str(num_params))
+    print("===============================================")
+    
     # try:
     #     checkpoint = torch.load(str(target_dir) + '/checkpoints/best_model.pth')
     #     start_epoch = checkpoint['epoch']
@@ -91,6 +105,8 @@ def prepare_to_train(model_selection, batch_size, epochs, optimize_selection, lo
 
     if loss_selection == 1:
         criterion = nn.CrossEntropyLoss()
+    elif loss_selection == 3:
+        criterion = Constract_Loss(device='cuda')
     # elif loss_selection == 2:
     #     criterion = Masked_Language_Modeling_Loss()
     else:
@@ -100,7 +116,10 @@ def prepare_to_train(model_selection, batch_size, epochs, optimize_selection, lo
     print("prepare completed! launch training!\U0001F680")
 
     # launch
-    if model_selection >= 6:
+    if model_selection ==8:
+        run_Selfsupervision(epochs=epochs, train_loader=trainDataLoader, 
+                   model=model, device=device, optimizer=optimizer, criterion=criterion)
+    elif model_selection >= 6:
         run_fusion(observer=observer, epochs=epochs, train_loader=trainDataLoader, test_loader=testDataLoader,
                    model=model, device=device, optimizer=optimizer, criterion=criterion)
     elif model_selection == 3:

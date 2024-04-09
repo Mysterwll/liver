@@ -10,6 +10,22 @@ def _3D_ResNet_50(**kwargs):
     model = ResNet(Bottleneck, [3, 4, 6, 3], get_inplanes(), **kwargs)
     return model
 
+def get_pretrained_Vision_Encoder():
+    model = ResNet(Bottleneck, [3, 4, 6, 3], get_inplanes())
+
+    state_dict = torch.load("./models/r3d50_K_200ep.pth")['state_dict']
+    keys = list(state_dict.keys())
+    state_dict.pop(keys[0])
+    state_dict.pop(keys[-1])
+    state_dict.pop(keys[-2])
+
+    model.load_state_dict(state_dict , strict=False)
+
+    for name, param in model.named_parameters():
+        if name in state_dict.keys():
+            param.requires_grad = False      
+
+    return model
 
 def get_inplanes():
     return [64, 128, 256, 512]
