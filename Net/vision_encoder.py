@@ -10,6 +10,25 @@ def _3D_ResNet_50(**kwargs):
     model = ResNet(Bottleneck, [3, 4, 6, 3], get_inplanes(), **kwargs)
     return model
 
+class pretrained_Resnet(nn.Module):
+    def __init__(self):
+        """
+            You can get a pre-trained 3D ResNet-50
+        """
+        super().__init__()
+        self.pt_Resnet = get_pretrained_Vision_Encoder()
+        self.projection_head = nn.Sequential(
+                            nn.Linear(400, 128, bias = False),
+                            nn.BatchNorm1d(128),
+                            nn.ReLU(inplace=True),
+                            nn.Linear(128, 128, bias = False)
+                            ) 
+    def forward(self, x):
+        x = self.pt_Resnet(x)
+        feat = x
+        pj_feat = self.projection_head(feat)
+        return feat, pj_feat
+
 def get_pretrained_Vision_Encoder():
     model = ResNet(Bottleneck, [3, 4, 6, 3], get_inplanes())
 

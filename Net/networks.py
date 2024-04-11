@@ -114,33 +114,7 @@ class Fusion_SelfAttention(nn.Module):
         global_feature = self.SA(global_feature)
         return self.classify_head(global_feature)
     
-
-# class Fusion_ContrastiveLearning(nn.Module):
-#     def __init__(self):
-#         super(Fusion_ContrastiveLearning, self).__init__()
-#         self.name = 'Fusion_ContrastiveLearning'
-#         self.bert = AutoModel.from_pretrained("./models/Bio_ClinicalBERT")
-#         self.Resnet = _3D_ResNet_50()
-
-#         self.fc_text = nn.Linear(768, 640)
-#         self.fc_vis = nn.Linear(400, 640)
-
-#     def forward(self, input_ids, attention_mask, token_type_ids, img):
-#         '''
-#         :param tokens_with_mask: input_ids, attention_mask<torch.Size([B, n])> from Bert -> output[B, 768]
-#         :param img: torch.Size([B, 1, 64, 512, 512]) -> output[B, 768]
-#         :return: torch.Size([B, 2]) -> output[B, 400]
-#         b = encoder(tokens_with_mask['input_ids'], attention_mask=tokens_with_mask['attention_mask'])
-#         b.pooler_output -> set as text_feature
-#         '''
-#         text_feature = self.bert(input_ids=input_ids, attention_mask=attention_mask,
-#                                  token_type_ids=token_type_ids).pooler_output
-#         vision_feature = self.Resnet(img)
-#         text_feature = self.fc_text(text_feature)
-#         vision_feature = self.fc_vis(vision_feature)
-
-#         return text_feature, vision_feature
-
+    
 class Contrastive_Learning(nn.Module):
     def __init__(self):
         super(Contrastive_Learning, self).__init__()
@@ -148,10 +122,20 @@ class Contrastive_Learning(nn.Module):
         self.Radio_encoder = Radiomic_encoder(num_features=1783)
         # self.Resnet = _3D_ResNet_50()
         self.Resnet = get_pretrained_Vision_Encoder()
-        # self.fc_radio = nn.Linear(256, 640)
-        # self.fc_vis = nn.Linear(400, 640)
-        self.fc_radio = nn.Linear(256, 128)
-        self.fc_vis = nn.Linear(400, 128)
+        self.projection_head_radio = nn.Sequential(
+                            nn.Linear(512, 128, bias = False),
+                            nn.BatchNorm1d(128),
+                            nn.ReLU(inplace=True),
+                            nn.Linear(128, 128, bias = False)
+                            ) 
+        
+        self.projection_head_vision = nn.Sequential(
+                            nn.Linear(400, 128, bias = False),
+                            nn.BatchNorm1d(128),
+                            nn.ReLU(inplace=True),
+                            nn.Linear(128, 128, bias = False)
+                            ) 
+        
     def forward(self, radio, img):
         '''
         :param radio: torch.Size([B, 1783]) 

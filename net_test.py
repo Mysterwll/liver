@@ -52,8 +52,20 @@ from transformers import BertModel, BertConfig, BertTokenizer
 if __name__ =='__main__':
 
     from torch.utils.data import DataLoader
+    import numpy as np
 
-    train_loader = DataLoader(Liver_dataset("./data/summery.txt", mode='self_supervised'), batch_size=1, shuffle=True, num_workers=4, drop_last=True)
+    # train_loader = DataLoader(Liver_dataset("./data/summery.txt", mode='self_supervised'), batch_size=1, shuffle=True, num_workers=4, drop_last=True)
 
-    for batch_idx, (radio, img) in enumerate(train_loader):
-        print(f"batch_idx: {batch_idx}  | radio shape: {radio.shape} | ;img shape: {img.shape}")
+    # for batch_idx, (radio, img) in enumerate(train_loader):
+    #     print(f"batch_idx: {batch_idx}  | radio shape: {radio.shape} | ;img shape: {img.shape}")
+
+    train_val_loader = DataLoader(Liver_dataset("./data/summery.txt", mode='radio_img_label'), batch_size=2, shuffle=True, num_workers=4, drop_last=True)
+    labels_train = []
+    for batch_idx, (radio, img, label) in enumerate(train_val_loader):
+        print(f"batch_idx: {batch_idx}  | radio shape: {radio.shape} | img shape: {img.shape} | label shape: {label.shape} ")
+        
+        labels = label.numpy().tolist()
+        labels_train += labels
+
+    labels_train = np.array(labels_train)
+    print(labels_train.shape)

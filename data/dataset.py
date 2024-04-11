@@ -81,6 +81,8 @@ class Liver_dataset(torch.utils.data.Dataset):
             return None, label_tensor
         elif self.mode == 'self_supervised':
             return radio_tensor, vision_tensor
+        elif self.mode == 'radio_img_label':
+            return radio_tensor, vision_tensor, label_tensor
         elif self.mode == 'fusion_2':
             return text_tensor['input_ids'].squeeze(0), text_tensor['token_type_ids'].squeeze(0), text_tensor['attention_mask'].squeeze(0), radio_tensor, vision_tensor, label_tensor
         else:
