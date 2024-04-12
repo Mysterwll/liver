@@ -63,6 +63,10 @@ class Runtime_Observer:
                    + " produced @epoch %3d\n" % (self.best_dicts['epoch'] + 1)
         self.log(log_info)
 
+    def record(self, epoch, loss, test_acc):
+        self.summary.add_scalar('train_loss', loss, epoch)
+        self.summary.add_scalar('Linear_acc', test_acc, epoch)
+
     def reset(self):
         self.test_acc.reset()
         self.test_auc.reset()
@@ -81,3 +85,21 @@ class Runtime_Observer:
                       + "exiting..."
         self.log(finish_info)
         self.log_ptr.close()
+
+
+class AverageMeter(object):
+    """Computes and stores the average and current value"""
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+
+    def update(self, val, n=1):
+        self.val = val
+        self.sum += val * n
+        self.count += n
+        self.avg = self.sum / self.count

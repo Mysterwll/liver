@@ -13,6 +13,7 @@ from Net.api import *
 from Net.loss_functions import *
 from data.dataset import Liver_dataset
 from utils.observer import Runtime_Observer
+from utils.observer import AverageMeter
 from sklearn.svm import SVC
 
 def train(batch_size, epochs, optimize_selection, learning_rate, name, seed, device):
@@ -91,9 +92,12 @@ def train(batch_size, epochs, optimize_selection, learning_rate, name, seed, dev
 
     # lowest_loss = float('inf')
     best_acc = 0
+    best_epoch = 0
     for epoch in range(epochs):
         print(f"Epoch: {epoch + 1}/{epochs}")
-        
+
+        train_losses = AverageMeter()
+
         Radio_encoder.train()
         Image_encoder.train()
         train_bar = tqdm(trainDataLoader, leave=True, file=sys.stdout)
@@ -104,7 +108,7 @@ def train(batch_size, epochs, optimize_selection, learning_rate, name, seed, dev
             optimizer.zero_grad()
             radio = radio.to(device)
             img = img.to(device)
-
+            
             radiomic_feature = Radio_encoder(radio)[1]
             vision_feature = Image_encoder(img)[1]
 
@@ -114,11 +118,9 @@ def train(batch_size, epochs, optimize_selection, learning_rate, name, seed, dev
             loss = criterion(radiomic_feature, vision_feature)
             loss.backward()
             optimizer.step()
-    
-        avg_loss = loss.item() / len(trainDataLoader)
-        
-        print(f"Epoch {epoch+1}, Average Loss: {avg_loss}")
 
+            train_losses.update(loss.item(), batch_size)
+    
         val_dataset = Liver_dataset("./data/summery.txt", mode='radio_img_label')
 
         train_val_dataset, test_val_dataset = random_split(val_dataset, [int(train_ratio * len(dataset)), len(dataset) - int(train_ratio * len(dataset))])
@@ -175,17 +177,25 @@ def train(batch_size, epochs, optimize_selection, learning_rate, name, seed, dev
         model_tl = SVC(C = 0.1, kernel ='linear')
         model_tl.fit(feats_train, labels_train)
         test_accuracy = model_tl.score(feats_test, labels_test)
+
+        print(f"Epoch {epoch+1}, Average Loss: {train_losses.avg}")
         print(f"Linear Accuracy : {test_accuracy}")
+
+        observer.record(epoch, train_losses.avg, test_accuracy)
         
         if test_accuracy > best_acc:
             best_acc = test_accuracy
+            best_epoch = epoch
             print('==> Saving Best Model...')
-            torch.save(Radio_encoder.state_dict(), "./models/liver/radio_model_best.pth")
-            torch.save(Image_encoder.state_dict(), "./models/liver/img_model_best.pth")
+            torch.save(Radio_encoder.state_dict(), checkpoints_dir/"radio_model_best.pth")
+            torch.save(Image_encoder.state_dict(), checkpoints_dir/"img_model_best.pth")
   
     print('==> Saving Last Model...')
-    torch.save(Radio_encoder.state_dict(), "./models/liver/radio_model_last.pth")
-    torch.save(Image_encoder.state_dict(), "./models/liver/img_model_last.pth")
+    torch.save(Radio_encoder.state_dict(), checkpoints_dir/"radio_model_last.pth")
+    torch.save(Image_encoder.state_dict(), checkpoints_dir/"img_model_last.pth")
+    print( "---experiment ended---\n" \
+           + "Best Epoch %d:\n" % (best_epoch+1) \
+           + "Best Linear Accuracy : %4.2f%%" % (best_acc) )
 
 if __name__ == "__main__":
     # Adding necessary input arguments

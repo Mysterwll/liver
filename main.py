@@ -13,7 +13,7 @@ from utils.observer import Runtime_Observer
 
 
 def prepare_to_train(model_selection, batch_size, epochs, optimize_selection, loss_selection, learning_rate, name,
-                     seed, device):
+                     seed, device, vision_pre):
     assert torch.cuda.is_available(), "Please ensure codes are executed on cuda."
     torch.cuda.empty_cache()
     '''
@@ -26,7 +26,7 @@ def prepare_to_train(model_selection, batch_size, epochs, optimize_selection, lo
     elif 6 > model_selection >= 3:
         dataset = Liver_dataset("./data/summery.txt", mode='bert')
     else:
-        dataset = Liver_dataset("./data/summery.txt")
+        dataset = Liver_dataset("./data/summery.txt", mode='img')
     
     torch.manual_seed(seed if (seed is not None) else 42)
     train_ratio = 0.7
@@ -57,7 +57,7 @@ def prepare_to_train(model_selection, batch_size, epochs, optimize_selection, lo
     Model load
     '''
     if model_selection == 1:
-        model = Vis_only()
+        model = Vis_only(use_pretrained= vision_pre)
     elif model_selection == 2:
         model = Vis_only_header()
     elif model_selection == 3:
@@ -80,15 +80,6 @@ def prepare_to_train(model_selection, batch_size, epochs, optimize_selection, lo
     print("model parameters: " + str(num_params))
     print("===============================================")
     
-    # try:
-    #     checkpoint = torch.load(str(target_dir) + '/checkpoints/best_model.pth')
-    #     start_epoch = checkpoint['epoch']
-    #     model.load_state_dict(checkpoint['model_state_dict'])
-    #     observer.log('Use pretrain model')
-    # except:
-    #     observer.log('No existing model, starting training from scratch...')
-    #     start_epoch = 0
-
     '''
     Hyper parameter settings
     '''
@@ -138,13 +129,14 @@ if __name__ == "__main__":
     parser.add_argument("--lr", default=0.0001, type=float, help="learning_rate")
     parser.add_argument("--name", default=None, type=str, help="Anything given by LinkStart.py on cross Val")
     parser.add_argument("--seed", default=None, type=int, help="seed given by LinkStart.py on cross Val")
-    parser.add_argument("--model", default=7, type=int, help="the exp model")
+    parser.add_argument("--model", default=1, type=int, help="the exp model")
     parser.add_argument("--optimizer", default='Adam', type=str, help="optimizer")
     parser.add_argument("--loss", default=1, type=int, help="optimizer")
     parser.add_argument("--device", default='cuda', type=str)
+    parser.add_argument("--vision_pre", default=True, help="whether use pre-trained vision encoder")
     args = parser.parse_args()
 
     print(args)
     prepare_to_train(model_selection=args.model, batch_size=args.bs, epochs=args.ep, learning_rate=args.lr,
                      optimize_selection=args.optimizer, name=args.name, seed=args.seed, device=args.device,
-                     loss_selection=args.loss)
+                     loss_selection=args.loss, vision_pre=args.vision_pre)

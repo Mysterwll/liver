@@ -9,9 +9,13 @@ import torch.nn as nn
 
 
 class Vis_only(nn.Module):
-    def __init__(self):
+    def __init__(self, use_pretrained = False):
         super(Vis_only, self).__init__()
-        self.Resnet = _3D_ResNet_50()
+        self.name = 'Vis_only'
+        if use_pretrained:
+            self.Resnet = get_pretrained_Vision_Encoder()
+        else:
+            self.Resnet = _3D_ResNet_50()
         self.output = nn.Linear(400, 2)
 
     def forward(self, x):
