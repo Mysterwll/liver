@@ -181,7 +181,7 @@ class Fusion_radio_img(nn.Module):
         self.Resnet.projection_head = nn.Identity()
 
         self.fc_Radio = nn.Linear(512, 256) 
-        self.fc_img = nn.Linear(512, 256)
+        self.fc_img = nn.Linear(400, 256)
         self.SA = SelfAttention(16, 512, 512, hidden_dropout_prob=0.2)
         self.classify_head = DenseNet(layer_num=(6, 12, 24, 16), growth_rate=32, in_channels=1, classes=2)
                             
@@ -192,8 +192,8 @@ class Fusion_radio_img(nn.Module):
         :param img: torch.Size([B, 1, 64, 512, 512]) 
         :return: torch.Size([B, 2])
         '''
-        radiomic_feature = self.Radio_encoder(radio)
-        vision_feature = self.Resnet(img)
+        radiomic_feature = self.Radio_encoder(radio)[0]
+        vision_feature = self.Resnet(img)[0]
         radiomic_feature = self.fc_Radio(radiomic_feature)
         vision_feature = self.fc_img(vision_feature)
         global_feature = torch.cat((radiomic_feature, vision_feature), dim=1)
