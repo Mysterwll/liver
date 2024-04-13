@@ -141,22 +141,26 @@ This function has been deprecated, please refer to train.py for more information
 #             torch.save(model.state_dict(), "./models/liver/vision_radiomic_model.pth")
 #             print(f"Saving model with lowest loss: {lowest_loss}")
 
-def run_fusion_2(observer, epochs, train_loader, test_loader, model, device, optimizer, criterion):
+
+"""
+run network Fusion_radio_img
+"""
+def run_fusion_radio_img(observer, epochs, train_loader, test_loader, model, device, optimizer, criterion):
     model = model.to(device)
     print("start training")
     for epoch in range(epochs):
         print(f"Epoch: {epoch + 1}/{epochs}")
+
         observer.reset()
         model.train()
         train_bar = tqdm(train_loader, leave=True, file=sys.stdout)
 
-        for i, (token, segment, mask, radio, img, label) in enumerate(train_bar):
+        for i, (radio, img, label) in enumerate(train_bar):
             optimizer.zero_grad()
-            token, segment, mask = token.to(device), segment.to(device), mask.to(device)
             radio = radio.to(device)
             img = img.to(device)
             label = label.to(device)
-            outputs = model(radio=radio, input_ids=token, attention_mask=mask, token_type_ids=segment, img=img)
+            outputs = model(radio, img)
             loss = criterion(outputs, label)
             loss.backward()
             optimizer.step()
@@ -165,12 +169,11 @@ def run_fusion_2(observer, epochs, train_loader, test_loader, model, device, opt
             model.eval()
             test_bar = tqdm(test_loader, leave=True, file=sys.stdout)
 
-            for i, (token, segment, mask, radio, img, label) in enumerate(test_bar):
-                token, segment, mask = token.to(device), segment.to(device), mask.to(device)
+            for i, (radio, img, label) in enumerate(test_bar):
                 radio = radio.to(device)
                 img = img.to(device)
                 label = label.to(device)
-                outputs = model(radio=radio, input_ids=token, attention_mask=mask, token_type_ids=segment, img=img)
+                outputs = model(radio, img)
                 _, predictions = torch.max(outputs, dim=1)
                 observer.update(predictions, label)
         observer.excute(epoch)
