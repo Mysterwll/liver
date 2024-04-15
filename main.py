@@ -20,7 +20,7 @@ def prepare_to_train(model_selection, batch_size, epochs, optimize_selection, lo
     Dataset init, You can refer to the dataset format defined in data/dataset.py to define your private dataset
     '''
     if model_selection >= 8:
-        dataset = Liver_dataset("./data/summery.txt", mode='self_supervised')
+        dataset = Liver_dataset("./data/summery.txt", mode='radio_img_label')
     elif 7 >= model_selection >= 6:
         dataset = Liver_dataset("./data/summery.txt", mode='fusion')
     elif 6 > model_selection >= 3:
@@ -67,7 +67,7 @@ def prepare_to_train(model_selection, batch_size, epochs, optimize_selection, lo
     elif model_selection == 7:
         model = Fusion_SelfAttention()
     elif model_selection == 8:
-        model = Contrastive_Learning()
+        model = Fusion_radio_img()
     else:
         model = Vis_only()
     observer.log(f'Use model : {model_selection} -> {model.name}\n')
@@ -108,7 +108,7 @@ def prepare_to_train(model_selection, batch_size, epochs, optimize_selection, lo
 
     # launch
     if model_selection ==8:
-        run_Selfsupervision(epochs=epochs, train_loader=trainDataLoader, 
+        run_fusion_radio_img(observer=observer, epochs=epochs, train_loader=trainDataLoader, test_loader=testDataLoader,
                    model=model, device=device, optimizer=optimizer, criterion=criterion)
     elif model_selection >= 6:
         run_fusion(observer=observer, epochs=epochs, train_loader=trainDataLoader, test_loader=testDataLoader,
@@ -129,7 +129,7 @@ if __name__ == "__main__":
     parser.add_argument("--lr", default=0.0001, type=float, help="learning_rate")
     parser.add_argument("--name", default=None, type=str, help="Anything given by LinkStart.py on cross Val")
     parser.add_argument("--seed", default=None, type=int, help="seed given by LinkStart.py on cross Val")
-    parser.add_argument("--model", default=1, type=int, help="the exp model")
+    parser.add_argument("--model", default=8, type=int, help="the exp model")
     parser.add_argument("--optimizer", default='Adam', type=str, help="optimizer")
     parser.add_argument("--loss", default=1, type=int, help="optimizer")
     parser.add_argument("--device", default='cuda', type=str)
