@@ -1,6 +1,7 @@
 import argparse
 from datetime import datetime
 from pathlib import Path
+from sklearn.model_selection import KFold
 
 import torch.utils.data
 from torch.utils.data import random_split
@@ -10,7 +11,7 @@ from data.dataset import Liver_dataset
 from utils.observer import Runtime_Observer
 
 
-def prepare_to_train(model_index, seed, device):
+def prepare_to_train(model_index, seed, device, fold):
     global model_settings
     assert torch.cuda.is_available(), "Please ensure codes are executed on cuda."
     try:
@@ -22,13 +23,23 @@ def prepare_to_train(model_index, seed, device):
     Dataset init, You can refer to the dataset format defined in data/dataset.py to define your private dataset
     '''
     dataset = Liver_dataset(model_settings['Data'], mode=model_settings['Dataset_mode'])
-    torch.manual_seed(seed if (seed is not None) else 42)
-    train_ratio = 0.7
-    train_dataset, test_dataset = random_split(dataset, [int(train_ratio * len(dataset)),
-                                                         len(dataset) - int(train_ratio * len(dataset))])
-    trainDataLoader = torch.utils.data.DataLoader(train_dataset, batch_size=model_settings['Batch'], shuffle=True, num_workers=4,
-                                                  drop_last=False)
-    testDataLoader = torch.utils.data.DataLoader(test_dataset, batch_size=model_settings['Batch'], shuffle=False, num_workers=4)
+    torch.manual_seed(seed)
+    # train_ratio = 0.7 train_dataset, test_dataset = random_split(dataset, [int(train_ratio * len(dataset)),
+    # len(dataset) - int(train_ratio * len(dataset))]) trainDataLoader = torch.utils.data.DataLoader(train_dataset,
+    # batch_size=model_settings['Batch'], shuffle=True, num_workers=4, drop_last=False) testDataLoader =
+    # torch.utils.data.DataLoader(test_dataset, batch_size=model_settings['Batch'], shuffle=False, num_workers=4)
+    '''
+    The seed in Kfold should be same!
+    '''
+    kf = KFold(n_splits=5, shuffle=True, random_state=seed)
+    train_index, test_index = [[t1, t2] for t1, t2 in kf.split(dataset)][fold]
+    train_dataset = torch.utils.data.Subset(dataset, train_index)
+    test_dataset = torch.utils.data.Subset(dataset, test_index)
+
+    trainDataLoader = torch.utils.data.DataLoader(train_dataset, batch_size=model_settings['Batch'], shuffle=True,
+                                                  num_workers=4, drop_last=False)
+    testDataLoader = torch.utils.data.DataLoader(test_dataset, batch_size=model_settings['Batch'], shuffle=False,
+                                                 num_workers=4)
     '''
     Training logs and monitors
     '''
@@ -80,7 +91,8 @@ if __name__ == "__main__":
     parser.add_argument("--model", default='RadioSA', type=str, help="model")
     parser.add_argument("--seed", default=42, type=int, help="seed given by LinkStart.py on cross Val")
     parser.add_argument("--device", default='cuda:0', type=str)
+    parser.add_argument("--fold", default=0, type=int, help="0~4")
     args = parser.parse_args()
 
     print(args)
-    prepare_to_train(model_index=args.model, seed=args.seed, device=args.device)
+    prepare_to_train(model_index=args.model, seed=args.seed, device=args.device, fold=args.fold)
