@@ -4,7 +4,7 @@ from transformers import AutoModel
 from Net.header import DenseNet
 from Net.vision_encoder import _3D_ResNet_50, get_pretrained_Vision_Encoder
 from Net.fusions import SelfAttention
-from Net.radiomic_encoder import Radiomic_encoder
+from Net.radiomic_encoder import *
 import torch.nn as nn
 
 
@@ -177,3 +177,34 @@ class Fusion_Main(nn.Module):
         global_feature = torch.unsqueeze(global_feature, dim=1)
         global_feature = self.SA(global_feature)
         return self.classify_head(global_feature)
+
+
+class Radio_only_Mamba(nn.Module):
+    def __init__(self):
+        super(Radio_only_Mamba, self).__init__()
+        self.name = 'Radiomic_only with Mamba'
+        self.mamba_block = Radiomic_mamba_encoder(num_features=1775)
+        self.classify_head = DenseNet(layer_num=(6, 12, 24, 16), growth_rate=32, in_channels=1, classes=2)
+
+    def forward(self, radio):
+        mamba_output = self.mamba_block(radio)
+        feature = torch.unsqueeze(mamba_output, dim=1)
+        return self.classify_head(feature)
+
+
+class Radio_only_SA(nn.Module):
+    def __init__(self):
+        super(Radio_only_SA, self).__init__()
+        self.name = 'Radiomic_only with SelfAttention'
+        self.projection1 = nn.Sequential(
+            nn.Linear(1775, 2048, bias=False),
+            nn.BatchNorm1d(2048),
+        )
+        self.SA = SelfAttention(16, 2048, 2048, hidden_dropout_prob=0.2)
+        self.classify_head = DenseNet(layer_num=(6, 12, 24, 16), growth_rate=32, in_channels=1, classes=2)
+
+    def forward(self, radio):
+        radio = self.projection1(radio)
+        radio = torch.unsqueeze(radio, dim=1)
+        feature = self.SA(radio)
+        return self.classify_head(feature)

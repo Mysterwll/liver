@@ -7,13 +7,14 @@ import SimpleITK as sitk
 
 
 class Liver_dataset(torch.utils.data.Dataset):
-    def __init__(self, summery_path: str, mode: str = 'bert'):
+    def __init__(self, summery_path: str, mode: str = 'mamba_test'):
         print("Dataset init ...")
         self.data_dict = {}  # all details of data
         self.data_list = []  # all uids of data
         self.data = []       # all value of data
         self.mode = mode
-        self.tokenizer = AutoTokenizer.from_pretrained("./models/Bio_ClinicalBERT")
+        if self.mode == 'bert':
+            self.tokenizer = AutoTokenizer.from_pretrained("./models/Bio_ClinicalBERT")
         summery = open(summery_path, 'r')
         titles = summery.readline().split()
         titles = [title.replace('_', ' ') for title in titles]
@@ -27,10 +28,10 @@ class Liver_dataset(torch.utils.data.Dataset):
             temp_dict = {}
             temp = {}
             for i in range(len(single_data_list)):
-                try:
-                    temp.update({titles[i]: single_data_list[i]})
-                except:
-                    print(f"Debug infos: uid{single_data_list[0]} titles{len(titles)} len{len(single_data_list)}")
+                # try:
+                temp.update({titles[i]: single_data_list[i]})
+                # except:
+                #     print(f"Debug infos: uid{single_data_list[0]} titles{len(titles)} len{len(single_data_list)}")
                 # print("insert : " + titles[i] + " : " + single_data_list[i])
             uid = temp.pop('uid')
             srcid = temp.pop('srcid')
@@ -44,7 +45,7 @@ class Liver_dataset(torch.utils.data.Dataset):
             elif self.mode == 'fusion':
                 temp_dict.update({'features': string})
             else:
-                temp_dict.update({'features': list(temp.values())})
+                temp_dict.update({'features': [float(x) for x in list(temp.values())]})
 
             # temp_dict.update({'source': temp})
 
@@ -66,7 +67,8 @@ class Liver_dataset(torch.utils.data.Dataset):
         vision = torch.Tensor(array)
         vision_tensor = torch.unsqueeze(vision, 0)
 
-        radio = self.data[index][60:1843]
+        # radio = self.data[index][60:1843]
+        radio = self.data_dict[uid]['features'][-1775:]
         radio_tensor = torch.Tensor(radio)
 
         label = int(self.data_dict[uid]['label'])
@@ -81,6 +83,8 @@ class Liver_dataset(torch.utils.data.Dataset):
             return vision_tensor, label_tensor
         elif self.mode == 'self_supervised':
             return radio_tensor, vision_tensor
+        elif self.mode == 'mamba_test':
+            return radio_tensor, label_tensor
         elif self.mode == 'radio_img_label':
             return radio_tensor, vision_tensor, label_tensor
         elif self.mode == 'fusion_2':
