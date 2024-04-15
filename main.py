@@ -19,7 +19,9 @@ def prepare_to_train(model_selection, batch_size, epochs, optimize_selection, lo
     '''
     Dataset init, You can refer to the dataset format defined in data/dataset.py to define your private dataset
     '''
-    if model_selection >= 8:
+    if model_selection >= 10:
+        dataset = Liver_dataset("./data/summery.txt", mode='mamba_test')
+    elif 10 > model_selection >= 8:
         dataset = Liver_dataset("./data/summery.txt", mode='radio_img_label')
     elif 7 >= model_selection >= 6:
         dataset = Liver_dataset("./data/summery.txt", mode='fusion')
@@ -68,6 +70,10 @@ def prepare_to_train(model_selection, batch_size, epochs, optimize_selection, lo
         model = Fusion_SelfAttention()
     elif model_selection == 8:
         model = Fusion_radio_img()
+    elif model_selection == 10:
+        model = Radio_only_Mamba()
+    elif model_selection == 11:
+        model = Radio_only_SA()
     else:
         model = Vis_only()
     observer.log(f'Use model : {model_selection} -> {model.name}\n')
@@ -107,7 +113,10 @@ def prepare_to_train(model_selection, batch_size, epochs, optimize_selection, lo
     print("prepare completed! launch training!\U0001F680")
 
     # launch
-    if model_selection ==8:
+    if model_selection == 10 or 11:
+        run(observer=observer, epochs=epochs, train_loader=trainDataLoader, test_loader=testDataLoader, model=model,
+            device=device, optimizer=optimizer, criterion=criterion)
+    elif model_selection == 8:
         run_fusion_radio_img(observer=observer, epochs=epochs, train_loader=trainDataLoader, test_loader=testDataLoader,
                    model=model, device=device, optimizer=optimizer, criterion=criterion)
     elif model_selection >= 6:
