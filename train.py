@@ -23,12 +23,12 @@ def train(batch_size, epochs, optimize_selection, learning_rate, name, seed, dev
     Dataset init, You can refer to the dataset format defined in data/dataset.py to define your private dataset
     '''
     
-    dataset = Liver_dataset("./data/summery.txt", mode='self_supervised')
+    dataset = Liver_dataset("./data/summery.txt", mode='radio_img_label')
 
     torch.manual_seed(seed if (seed is not None) else 42)
     train_ratio = 0.7
     train_dataset, test_dataset = random_split(dataset, [int(train_ratio * len(dataset)), len(dataset) - int(train_ratio * len(dataset))])
-    trainDataLoader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4, drop_last=True)
+    trainDataLoader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4, drop_last=False)
     testDataLoader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=4)
     '''
     Training logs and monitors
@@ -100,9 +100,9 @@ def train(batch_size, epochs, optimize_selection, learning_rate, name, seed, dev
 
         Radio_encoder.train()
         Image_encoder.train()
-        train_bar = tqdm(trainDataLoader, leave=True, file=sys.stdout)
+        # train_bar = tqdm(trainDataLoader, leave=True, file=sys.stdout)
 
-        for i, (radio, img) in enumerate(train_bar):
+        for i, (radio, img, _ ) in enumerate(trainDataLoader):
             # print("radio.shpae = " + str(radio.shape))
             # print("img.shpae = " + str(img.shape))
             optimizer.zero_grad()
@@ -121,11 +121,11 @@ def train(batch_size, epochs, optimize_selection, learning_rate, name, seed, dev
 
             train_losses.update(loss.item(), batch_size)
     
-        val_dataset = Liver_dataset("./data/summery.txt", mode='radio_img_label')
+        # val_dataset = Liver_dataset("./data/summery.txt", mode='radio_img_label')
 
-        train_val_dataset, test_val_dataset = random_split(val_dataset, [int(train_ratio * len(dataset)), len(dataset) - int(train_ratio * len(dataset))])
-        train_val_loader = torch.utils.data.DataLoader(train_val_dataset, batch_size=batch_size, shuffle=True, num_workers=4, drop_last=True)
-        test_val_loader = torch.utils.data.DataLoader(test_val_dataset, batch_size=batch_size, shuffle=False, num_workers=4)
+        # train_val_dataset, test_val_dataset = random_split(val_dataset, [int(train_ratio * len(dataset)), len(dataset) - int(train_ratio * len(dataset))])
+        # train_val_loader = torch.utils.data.DataLoader(train_val_dataset, batch_size=batch_size, shuffle=True, num_workers=4, drop_last=True)
+        # test_val_loader = torch.utils.data.DataLoader(test_val_dataset, batch_size=batch_size, shuffle=False, num_workers=4)
 
 
         feats_train = []
@@ -135,7 +135,7 @@ def train(batch_size, epochs, optimize_selection, learning_rate, name, seed, dev
         Image_encoder.eval()
 
          # Testing
-        for i, (radio, img, label) in enumerate(train_val_loader):
+        for i, (radio, img, label) in enumerate(trainDataLoader):
             labels = label.numpy().tolist()
 
             radio = radio.to(device)
@@ -157,7 +157,7 @@ def train(batch_size, epochs, optimize_selection, learning_rate, name, seed, dev
         feats_test = []
         labels_test = []
 
-        for i, (radio, img, label) in enumerate(test_val_loader):
+        for i, (radio, img, label) in enumerate(testDataLoader):
             labels = label.numpy().tolist()
             radio = radio.to(device)
             img = img.to(device)
@@ -205,9 +205,7 @@ if __name__ == "__main__":
     parser.add_argument("--lr", default=0.0001, type=float, help="learning_rate")
     parser.add_argument("--name", default=None, type=str, help="Anything given by LinkStart.py on cross Val")
     parser.add_argument("--seed", default=None, type=int, help="seed given by LinkStart.py on cross Val")
-    parser.add_argument("--model", default=7, type=int, help="the exp model")
     parser.add_argument("--optimizer", default='Adam', type=str, help="optimizer")
-    parser.add_argument("--loss", default=1, type=int, help="optimizer")
     parser.add_argument("--device", default='cuda', type=str)
     args = parser.parse_args()
 
