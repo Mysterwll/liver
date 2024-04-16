@@ -273,7 +273,7 @@ class Radio_only_Mamba(nn.Module):
     def __init__(self):
         super(Radio_only_Mamba, self).__init__()
         self.name = 'Radiomic_only with Mamba'
-        self.mamba_block = Radiomic_mamba_encoder(num_features=1775)
+        self.mamba_block = Radiomic_mamba_encoder(num_features=1783)
         self.classify_head = DenseNet(layer_num=(6, 12, 24, 16), growth_rate=32, in_channels=1, classes=2)
 
     def forward(self, radio):
@@ -287,8 +287,8 @@ class Radio_only_SA(nn.Module):
         super(Radio_only_SA, self).__init__()
         self.name = 'Radiomic_only with SelfAttention'
         self.projection1 = nn.Sequential(
-            nn.Linear(1775, 2048, bias=False),
-            nn.BatchNorm1d(2048),
+            nn.ReLU(inplace=True),
+            nn.Linear(1775, 2048, bias=False)
         )
         self.SA = SelfAttention(16, 2048, 2048, hidden_dropout_prob=0.2)
         self.classify_head = DenseNet(layer_num=(6, 12, 24, 16), growth_rate=32, in_channels=1, classes=2)

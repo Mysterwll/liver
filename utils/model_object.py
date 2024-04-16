@@ -28,5 +28,17 @@ models = {
         'Optimizer': Adam,
         'Loss': CrossEntropyLoss,
         'Run': run
+    },
+    'RadioMamba': {
+        'Name': 'Radio Mamba Norm',
+        'Data': './data/summery_new.txt',
+        'Batch': 16,
+        'Lr': 0.001,
+        'Epoch': 200,
+        'Dataset_mode': 'mamba_test',
+        'Model': Radio_only_Mamba,
+        'Optimizer': Adam,
+        'Loss': CrossEntropyLoss,
+        'Run': run
     }
 }
