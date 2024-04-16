@@ -107,6 +107,8 @@ def run_fusion(observer, epochs, train_loader, test_loader, model, device, optim
 """
 This function has been deprecated, please refer to train.py for more information.
 """
+
+
 # def run_Selfsupervision(epochs, train_loader, model, device, optimizer, criterion):
 #     model = model.to(device)
 #     print("start training")
@@ -115,7 +117,7 @@ This function has been deprecated, please refer to train.py for more information
 
 #     for epoch in range(epochs):
 #         print(f"Epoch: {epoch + 1}/{epochs}")
-        
+
 #         model.train()
 #         train_bar = tqdm(train_loader, leave=True, file=sys.stdout)
 
@@ -131,9 +133,9 @@ This function has been deprecated, please refer to train.py for more information
 #             loss = criterion(radiomic_feature, vision_feature)
 #             loss.backward()
 #             optimizer.step()
-     
+
 #         avg_loss = loss.item() / len(train_loader)
-        
+
 #         print(f"Epoch {epoch+1}, Average Loss: {avg_loss}")
 
 #         if avg_loss < lowest_loss:

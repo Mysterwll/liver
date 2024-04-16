@@ -4,7 +4,7 @@ from transformers import AutoModel
 from Net.header import DenseNet
 from Net.vision_encoder import _3D_ResNet_50, get_pretrained_Vision_Encoder, pretrained_Resnet
 from Net.fusions import SelfAttention
-from Net.radiomic_encoder import Radiomic_encoder
+from Net.radiomic_encoder import *
 import torch.nn as nn
 
 
@@ -118,6 +118,42 @@ class Fusion_SelfAttention(nn.Module):
         global_feature = self.SA(global_feature)
         return self.classify_head(global_feature)
     
+    
+class Contrastive_Learning(nn.Module):
+    def __init__(self):
+        super(Contrastive_Learning, self).__init__()
+        self.name = 'Contrastive_Learning'
+        self.Radio_encoder = Radiomic_encoder(num_features=1783)
+        # self.Resnet = _3D_ResNet_50()
+        self.Resnet = get_pretrained_Vision_Encoder()
+        self.projection_head_radio = nn.Sequential(
+                            nn.Linear(512, 128, bias = False),
+                            nn.BatchNorm1d(128),
+                            nn.ReLU(inplace=True),
+                            nn.Linear(128, 128, bias = False)
+                            ) 
+        
+        self.projection_head_vision = nn.Sequential(
+                            nn.Linear(400, 128, bias = False),
+                            nn.BatchNorm1d(128),
+                            nn.ReLU(inplace=True),
+                            nn.Linear(128, 128, bias = False)
+                            ) 
+        
+    def forward(self, radio, img):
+        '''
+        :param radio: torch.Size([B, 1783]) 
+        :param img: torch.Size([B, 1, 64, 512, 512]) 
+        :return: radiomic_feature: torch.Size([B, 128])   vision_feature: torch.Size([B, 128])
+        '''
+        radiomic_feature = self.Radio_encoder(radio)
+        vision_feature = self.Resnet(img)
+        radiomic_feature = self.fc_radio(radiomic_feature)
+        vision_feature = self.fc_vis(vision_feature)
+
+        return radiomic_feature, vision_feature
+
+
 """
 This function has been deprecated, please refer to train.py for more information.
 """
@@ -133,19 +169,19 @@ This function has been deprecated, please refer to train.py for more information
 #                             nn.BatchNorm1d(128),
 #                             nn.ReLU(inplace=True),
 #                             nn.Linear(128, 128, bias = False)
-#                             ) 
-        
+#                             )
+
 #         self.projection_head_vision = nn.Sequential(
 #                             nn.Linear(400, 128, bias = False),
 #                             nn.BatchNorm1d(128),
 #                             nn.ReLU(inplace=True),
 #                             nn.Linear(128, 128, bias = False)
-#                             ) 
-        
+#                             )
+
 #     def forward(self, radio, img):
 #         '''
-#         :param radio: torch.Size([B, 1783]) 
-#         :param img: torch.Size([B, 1, 64, 512, 512]) 
+#         :param radio: torch.Size([B, 1783])
+#         :param img: torch.Size([B, 1, 64, 512, 512])
 #         :return: radiomic_feature: torch.Size([B, 128])   vision_feature: torch.Size([B, 128])
 #         '''
 #         radiomic_feature = self.Radio_encoder(radio)
@@ -154,10 +190,12 @@ This function has been deprecated, please refer to train.py for more information
 #         vision_feature = self.fc_vis(vision_feature)
 
 #         return radiomic_feature, vision_feature
-    
+
 """
 Integration of radiomics and deep learning features utilizing a self-supervised trained encoder. (self-attention)
-"""    
+"""
+
+
 class Fusion_radio_img(nn.Module):
     def __init__(self):
         super(Fusion_radio_img, self).__init__()
@@ -180,16 +218,15 @@ class Fusion_radio_img(nn.Module):
             param.requires_grad = False
         self.Resnet.projection_head = nn.Identity()
 
-        self.fc_Radio = nn.Linear(512, 256) 
+        self.fc_Radio = nn.Linear(512, 256)
         self.fc_img = nn.Linear(400, 256)
         self.SA = SelfAttention(16, 512, 512, hidden_dropout_prob=0.2)
         self.classify_head = DenseNet(layer_num=(6, 12, 24, 16), growth_rate=32, in_channels=1, classes=2)
-                            
-        
+
     def forward(self, radio, img):
         '''
-        :param radio: torch.Size([B, 1782]) 
-        :param img: torch.Size([B, 1, 64, 512, 512]) 
+        :param radio: torch.Size([B, 1782])
+        :param img: torch.Size([B, 1, 64, 512, 512])
         :return: torch.Size([B, 2])
         '''
         radiomic_feature = self.Radio_encoder(radio)[0]
@@ -201,10 +238,13 @@ class Fusion_radio_img(nn.Module):
         global_feature = self.SA(global_feature)
         return self.classify_head(global_feature)
 
+
 """
 try to fusion radiomic,img and text.
 Still coding....
 """
+
+
 # class Fusion_Main(nn.Module):
 #     def __init__(self):
 #         super(Fusion_Main, self).__init__()
@@ -227,3 +267,34 @@ Still coding....
 #         global_feature = torch.unsqueeze(global_feature, dim=1)
 #         global_feature = self.SA(global_feature)
 #         return self.classify_head(global_feature)
+
+
+class Radio_only_Mamba(nn.Module):
+    def __init__(self):
+        super(Radio_only_Mamba, self).__init__()
+        self.name = 'Radiomic_only with Mamba'
+        self.mamba_block = Radiomic_mamba_encoder(num_features=1783)
+        self.classify_head = DenseNet(layer_num=(6, 12, 24, 16), growth_rate=32, in_channels=1, classes=2)
+
+    def forward(self, radio):
+        mamba_output = self.mamba_block(radio)
+        feature = torch.unsqueeze(mamba_output, dim=1)
+        return self.classify_head(feature)
+
+
+class Radio_only_SA(nn.Module):
+    def __init__(self):
+        super(Radio_only_SA, self).__init__()
+        self.name = 'Radiomic_only with SelfAttention'
+        self.projection1 = nn.Sequential(
+            nn.ReLU(inplace=True),
+            nn.Linear(1775, 2048, bias=False)
+        )
+        self.SA = SelfAttention(16, 2048, 2048, hidden_dropout_prob=0.2)
+        self.classify_head = DenseNet(layer_num=(6, 12, 24, 16), growth_rate=32, in_channels=1, classes=2)
+
+    def forward(self, radio):
+        radio = self.projection1(radio)
+        radio = torch.unsqueeze(radio, dim=1)
+        feature = self.SA(radio)
+        return self.classify_head(feature)
