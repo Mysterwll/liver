@@ -8,7 +8,7 @@ import pickle
 
 
 class Liver_dataset(torch.utils.data.Dataset):
-    def __init__(self, summery_path: str, mode: str = 'mamba_test'):
+    def __init__(self, summery_path: str = 'data/summery_new.txt', mode: str = 'mamba_test'):
         print("Dataset init ...")
         self.data_dict = {}  # all details of data
         self.data_list = []  # all uids of data
@@ -64,14 +64,19 @@ class Liver_dataset(torch.utils.data.Dataset):
         srcid = self.data_dict[uid]['srcid']
         text_feature = self.data_dict[uid]['features']
 
-        img = sitk.ReadImage('./data/img/' + srcid + ".nii.gz")
-        array = sitk.GetArrayFromImage(img)
-        vision = torch.Tensor(array)
-        vision_tensor = torch.unsqueeze(vision, 0)
+        # img = sitk.ReadImage('./data/img/' + srcid + ".nii.gz")
+        # array = sitk.GetArrayFromImage(img)
+        # vision = torch.Tensor(array)
+        # vision_tensor = torch.unsqueeze(vision, 0)
 
-        # radio = self.data[index][60:1843]
-        radio = self.data_dict[uid]['features'][-1777:]
+        # usage of text data
+        clinical = self.data_dict[uid]['features'][:-1781]
+        clinical_tensor = torch.Tensor(clinical)
+        clinical_tensor = torch.where(torch.isnan(clinical_tensor), torch.full_like(clinical_tensor, 0),
+                                      clinical_tensor)
+        radio = self.data_dict[uid]['features'][-1781:]
         radio_tensor = torch.Tensor(radio)
+        radio_tensor = torch.where(torch.isnan(radio_tensor), torch.full_like(radio_tensor, 0), radio_tensor)
 
         label = int(self.data_dict[uid]['label'])
         label_tensor = torch.from_numpy(np.array(label)).long()
@@ -88,7 +93,7 @@ class Liver_dataset(torch.utils.data.Dataset):
         elif self.mode == 'self_supervised':
             return radio_tensor, vision_tensor
         elif self.mode == 'mamba_test':
-            return radio_tensor, label_tensor
+            return clinical_tensor, label_tensor
         elif self.mode == 'radio_img_label':
             return radio_tensor, vision_tensor, label_tensor
         else:
@@ -118,7 +123,7 @@ class Liver_dataset(torch.utils.data.Dataset):
 
 
 class Liver_normalization_dataset(torch.utils.data.Dataset):
-    def __init__(self, summery_path: str = 'data/summery_new.txt', mode: str = 'mamba_test'):
+    def __init__(self, summery_path: str = 'data/summery_new.txt', mode: str = 'all_model'):
         print("Dataset(norm) init ...")
         self.data_dict = {}  # all details of data
         self.data_list = []  # all uids of data
@@ -179,9 +184,10 @@ class Liver_normalization_dataset(torch.utils.data.Dataset):
         vision_tensor = torch.unsqueeze(vision, 0)
 
         # usage of text data
-        # clinical = self.data_dict[uid]['features'][:-1783]
-        # clinical_tensor = torch.Tensor(clinical)
-        radio = self.data_dict[uid]['features'][-1783:]
+        clinical = self.data_dict[uid]['features'][:-1781]
+        clinical_tensor = torch.Tensor(clinical)
+        clinical_tensor = torch.where(torch.isnan(clinical_tensor), torch.full_like(clinical_tensor, 0), clinical_tensor)
+        radio = self.data_dict[uid]['features'][-1781:]
         radio_tensor = torch.Tensor(radio)
         radio_tensor = torch.where(torch.isnan(radio_tensor), torch.full_like(radio_tensor, 0), radio_tensor)
 
@@ -195,6 +201,8 @@ class Liver_normalization_dataset(torch.utils.data.Dataset):
             return radio_tensor, label_tensor
         elif self.mode == 'radio_img_label':
             return radio_tensor, vision_tensor, label_tensor
+        elif self.mode == 'all_model':
+            return clinical_tensor, radio_tensor, vision_tensor, label_tensor
         else:
             return None
 

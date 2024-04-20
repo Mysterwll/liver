@@ -9,7 +9,7 @@ import torch.nn as nn
 
 
 class Vis_only(nn.Module):
-    def __init__(self, use_pretrained = False):
+    def __init__(self, use_pretrained=False):
         super(Vis_only, self).__init__()
         self.name = 'Vis_only'
         if use_pretrained:
@@ -117,8 +117,8 @@ class Fusion_SelfAttention(nn.Module):
         global_feature = torch.unsqueeze(global_feature, dim=1)
         global_feature = self.SA(global_feature)
         return self.classify_head(global_feature)
-    
-    
+
+
 class Contrastive_Learning(nn.Module):
     def __init__(self):
         super(Contrastive_Learning, self).__init__()
@@ -127,19 +127,19 @@ class Contrastive_Learning(nn.Module):
         # self.Resnet = _3D_ResNet_50()
         self.Resnet = get_pretrained_Vision_Encoder()
         self.projection_head_radio = nn.Sequential(
-                            nn.Linear(512, 128, bias = False),
-                            nn.BatchNorm1d(128),
-                            nn.ReLU(inplace=True),
-                            nn.Linear(128, 128, bias = False)
-                            ) 
-        
+            nn.Linear(512, 128, bias=False),
+            nn.BatchNorm1d(128),
+            nn.ReLU(inplace=True),
+            nn.Linear(128, 128, bias=False)
+        )
+
         self.projection_head_vision = nn.Sequential(
-                            nn.Linear(400, 128, bias = False),
-                            nn.BatchNorm1d(128),
-                            nn.ReLU(inplace=True),
-                            nn.Linear(128, 128, bias = False)
-                            ) 
-        
+            nn.Linear(400, 128, bias=False),
+            nn.BatchNorm1d(128),
+            nn.ReLU(inplace=True),
+            nn.Linear(128, 128, bias=False)
+        )
+
     def forward(self, radio, img):
         '''
         :param radio: torch.Size([B, 1783]) 
@@ -297,4 +297,23 @@ class Radio_only_SA(nn.Module):
         radio = self.projection1(radio)
         radio = torch.unsqueeze(radio, dim=1)
         feature = self.SA(radio)
+        return self.classify_head(feature)
+
+
+class Multi_model_Mamba_SA(nn.Module):
+    def __init__(self):
+        super(Multi_model_Mamba_SA, self).__init__()
+        self.name = 'Multi_model_Mamba_SA'
+        self.mamba_block = Radiomic_mamba_encoder(num_features=1781)
+        self.mamba_block_clinic = Radiomic_mamba_encoder(num_features=58)
+        self.Resnet = _3D_ResNet_50()
+        self.SA = SelfAttention(16, 512, 512, hidden_dropout_prob=0.2)
+        self.classify_head = DenseNet(layer_num=(6, 12, 24, 16), growth_rate=32, in_channels=1, classes=2)
+
+    def forward(self, cli, radio, img):
+        radio_mamba_output = self.mamba_block(radio)
+        cli_mamba_output = self.mamba_block_clinic(cli)
+        vision_feature = self.Resnet(img)
+        global_feature = torch.cat((radio_mamba_output, cli_mamba_output, vision_feature), dim=1)
+        feature = torch.unsqueeze(global_feature, dim=1)
         return self.classify_head(feature)

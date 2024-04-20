@@ -63,20 +63,20 @@ class Mamba_block(nn.Module):
 
 
 class Radiomic_mamba_encoder(nn.Module):
-    def __init__(self, num_features: int = 1783, depth: int = 32):
+    def __init__(self, num_features: int = 1781, depth: int = 32):
         """
-            feature num -> 1783
+            feature num -> 1781
             Radiomic_encoder based on Mamba model
         """
         super().__init__()
         self.projection1 = nn.Sequential(
             nn.ReLU(inplace=True),
-            nn.Linear(1783, 2048)
+            nn.Linear(num_features, 2048)
         )
         self.blocks = nn.ModuleList([Mamba_block() for _ in range(depth)])
         self.projection2 = nn.Sequential(
             nn.Linear(2048, 512),
-            nn.BatchNorm1d(512),
+            nn.InstanceNorm1d(512),
             nn.ReLU(inplace=True),
             nn.Linear(512, 256)
         )

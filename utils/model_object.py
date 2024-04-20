@@ -40,5 +40,17 @@ models = {
         'Optimizer': Adam,
         'Loss': CrossEntropyLoss,
         'Run': run
+    },
+    'AllMamba': {
+        'Name': 'ALLModel with Mamba and SA',
+        'Data': './data/summery_new.txt',
+        'Batch': 2,
+        'Lr': 0.001,
+        'Epoch': 200,
+        'Dataset_mode': 'all_model',
+        'Model': Multi_model_Mamba_SA,
+        'Optimizer': Adam,
+        'Loss': CrossEntropyLoss,
+        'Run': run_fusion_all
     }
 }
