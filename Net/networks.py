@@ -297,13 +297,14 @@ class Fusion_Main(nn.Module):
     def __init__(self):
         super(Fusion_Main, self).__init__()
         self.name = 'Fusion_Main'
-        self.Radio_encoder = Radiomic_mamba_encoder(num_features=1781)
+        self.Radio_encoder = Radiomic_encoder(num_features=1781)
+        self.Radio_encoder.projection_head = nn.Identity()
 
         self.Resnet = get_pretrained_Vision_Encoder()
 
         self.bert = AutoModel.from_pretrained("./models/Bio_ClinicalBERT")
         self.radio_projection_head = nn.Sequential(
-            nn.Linear(256, 128, bias=False),
+            nn.Linear(512, 128, bias=False),
             nn.BatchNorm1d(128),
             nn.ReLU(inplace=True),
             nn.Linear(128, 128, bias=False)
@@ -318,7 +319,7 @@ class Fusion_Main(nn.Module):
         # self.fc_Radio = nn.Linear(512, 256)
         # self.fc_img = nn.Linear(400, 256)
         self.fc_text = nn.Linear(768, 256)
-        self.SA = SelfAttention(16, 400+256+256, 400+256+256, hidden_dropout_prob=0.2)
+        self.SA = SelfAttention(16, 400+512+256, 400+512+256, hidden_dropout_prob=0.2)
         self.classify_head = DenseNet(layer_num=(6, 12, 24, 16), growth_rate=32, in_channels=1, classes=2)
 
     def forward(self, input_ids, attention_mask, token_type_ids, radio, img):
@@ -327,7 +328,7 @@ class Fusion_Main(nn.Module):
         :param img: torch.Size([B, 1, 64, 512, 512])
         :return: torch.Size([B, 2])
         '''
-        radiomic_feature = self.Radio_encoder(radio)
+        radiomic_feature = self.Radio_encoder(radio)[0]
         vision_feature = self.Resnet(img)
 
         radiomic_feature_pj = self.radio_projection_head(radiomic_feature)
