@@ -43,6 +43,18 @@ class Constract_Loss(nn.Module):
         ) / 2
 
         return total_loss
+    
+class joint_loss(nn.Module):
+    def __init__(self):
+        super(joint_loss, self).__init__()
+        self.loss_cl = Constract_Loss('cuda')
+        self.loss_task = nn.CrossEntropyLoss()
+    def forward(self,modality1_features, modality2_features, logits, label):
+        cl_loss = self.loss_cl(modality1_features, modality2_features, 0.1)
+        
+        task_loss = self.loss_task(logits, label)
+        loss =  cl_loss + task_loss
+        return loss
 
 
 if __name__ == '__main__':
