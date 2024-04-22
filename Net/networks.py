@@ -9,7 +9,7 @@ import torch.nn as nn
 
 
 class Vis_only(nn.Module):
-    def __init__(self, use_pretrained = False):
+    def __init__(self, use_pretrained=False):
         super(Vis_only, self).__init__()
         self.name = 'Vis_only'
         if use_pretrained:
@@ -117,8 +117,8 @@ class Fusion_SelfAttention(nn.Module):
         global_feature = torch.unsqueeze(global_feature, dim=1)
         global_feature = self.SA(global_feature)
         return self.classify_head(global_feature)
-    
-    
+
+
 class Contrastive_Learning(nn.Module):
     def __init__(self):
         super(Contrastive_Learning, self).__init__()
@@ -127,19 +127,19 @@ class Contrastive_Learning(nn.Module):
         # self.Resnet = _3D_ResNet_50()
         self.Resnet = get_pretrained_Vision_Encoder()
         self.projection_head_radio = nn.Sequential(
-                            nn.Linear(512, 128, bias = False),
-                            nn.BatchNorm1d(128),
-                            nn.ReLU(inplace=True),
-                            nn.Linear(128, 128, bias = False)
-                            ) 
-        
+            nn.Linear(512, 128, bias=False),
+            nn.BatchNorm1d(128),
+            nn.ReLU(inplace=True),
+            nn.Linear(128, 128, bias=False)
+        )
+
         self.projection_head_vision = nn.Sequential(
-                            nn.Linear(400, 128, bias = False),
-                            nn.BatchNorm1d(128),
-                            nn.ReLU(inplace=True),
-                            nn.Linear(128, 128, bias = False)
-                            ) 
-        
+            nn.Linear(400, 128, bias=False),
+            nn.BatchNorm1d(128),
+            nn.ReLU(inplace=True),
+            nn.Linear(128, 128, bias=False)
+        )
+
     def forward(self, radio, img):
         '''
         :param radio: torch.Size([B, 1783]) 
@@ -201,7 +201,7 @@ class Fusion_radio_img(nn.Module):
         super(Fusion_radio_img, self).__init__()
         self.name = 'Fusion_radio_img'
 
-        self.Radio_encoder = Radiomic_encoder(num_features=1782)
+        self.Radio_encoder = Radiomic_encoder(num_features=1781)
         radio_state_dict = torch.load("./logs/classification/2024-04-12_15-10/checkpoints/radio_model_best.pth")
         self.Radio_encoder.load_state_dict(radio_state_dict)
         # 冻结Radiomic编码器的参数
@@ -225,7 +225,7 @@ class Fusion_radio_img(nn.Module):
 
     def forward(self, radio, img):
         '''
-        :param radio: torch.Size([B, 1782])
+        :param radio: torch.Size([B, 1781])
         :param img: torch.Size([B, 1, 64, 512, 512])
         :return: torch.Size([B, 2])
         '''
@@ -244,29 +244,106 @@ try to fusion radiomic,img and text.
 Still coding....
 """
 
+class Fusion_2stage(nn.Module):
+    def __init__(self, radio_encoder_path, img_encoder_path):
+        super(Fusion_2stage, self).__init__()
+        self.name = 'Fusion_2stage'
+        self.Radio_encoder = Radiomic_encoder(num_features=1781)
+        radio_state_dict = torch.load(radio_encoder_path)
+        self.Radio_encoder.load_state_dict(radio_state_dict)
+        # 冻结Radiomic编码器的参数
+        for param in self.Radio_encoder.parameters():
+            param.requires_grad = False
+        # 去除投影头
+        self.Radio_encoder.projection_head = nn.Identity()
 
-# class Fusion_Main(nn.Module):
-#     def __init__(self):
-#         super(Fusion_Main, self).__init__()
-#         self.name = 'Fusion_Main'
-#         self.extract_model = Contrastive_Learning().load_state_dict(torch.load("./models/liver/vision_radiomic_model.pth")['state_dict'] , strict=False)
-#         self.fc_radio = nn.Linear(256, 320)
-#         self.fc_text = nn.Linear(768, 320)
-#         self.fc_vis = nn.Linear(400, 320)
-#         self.SA = SelfAttention(16, 1280, 1280, hidden_dropout_prob=0.2)
-#         self.classify_head = DenseNet(layer_num=(6, 12, 24, 16), growth_rate=32, in_channels=1, classes=2)
+        self.Resnet = pretrained_Resnet()
+        resnet_state_dict = torch.load(img_encoder_path)
+        self.Resnet.load_state_dict(resnet_state_dict)
+        # 冻结Resnet的参数
+        for param in self.Resnet.parameters():
+            param.requires_grad = False
+        self.Resnet.projection_head = nn.Identity()
 
-#     def forward(self, radio, input_ids, attention_mask, token_type_ids, img):
+        self.bert = AutoModel.from_pretrained("./models/Bio_ClinicalBERT")
+        # self.fc_Radio = nn.Linear(512, 256)
+        # self.fc_img = nn.Linear(400, 256)
+        self.fc_text = nn.Linear(768, 256)
+        self.SA = SelfAttention(16, 512+400+256, 512+400+256, hidden_dropout_prob=0.2)
+        self.classify_head = DenseNet(layer_num=(6, 12, 24, 16), growth_rate=32, in_channels=1, classes=2)
 
-#         radiomic_feature, vision_feature = self.extract_model(radio, img)
+    def forward(self, input_ids, attention_mask, token_type_ids, radio, img):
+        '''
+        :param radio: torch.Size([B, 1781])
+        :param img: torch.Size([B, 1, 64, 512, 512])
+        :return: torch.Size([B, 2])
+        '''
+        with torch.no_grad():
+            radiomic_feature = self.Radio_encoder(radio)[0]
+            vision_feature = self.Resnet(img)[0]
+        text_feature = self.bert(input_ids=input_ids, attention_mask=attention_mask,
+                                 token_type_ids=token_type_ids).pooler_output
+        
+        # radiomic_feature = self.fc_Radio(radiomic_feature)
+        # vision_feature = self.fc_img(vision_feature)
+        text_feature = self.fc_text(text_feature)
 
-#         text_feature = self.bert(input_ids=input_ids, attention_mask=attention_mask,
-#                                  token_type_ids=token_type_ids).pooler_output
+        global_feature = torch.cat((radiomic_feature, vision_feature, text_feature), dim=1)
+        global_feature = torch.unsqueeze(global_feature, dim=1)
+        global_feature = self.SA(global_feature)
+        return self.classify_head(global_feature)
 
-#         global_feature = torch.cat((radiomic_feature, vision_feature, text_feature), dim=1)
-#         global_feature = torch.unsqueeze(global_feature, dim=1)
-#         global_feature = self.SA(global_feature)
-#         return self.classify_head(global_feature)
+class Fusion_Main(nn.Module):
+    def __init__(self):
+        super(Fusion_Main, self).__init__()
+        self.name = 'Fusion_Main'
+        self.Radio_encoder = Radiomic_mamba_encoder(num_features=1781)
+
+        self.Resnet = get_pretrained_Vision_Encoder()
+
+        self.bert = AutoModel.from_pretrained("./models/Bio_ClinicalBERT")
+        self.radio_projection_head = nn.Sequential(
+            nn.Linear(256, 128, bias=False),
+            nn.BatchNorm1d(128),
+            nn.ReLU(inplace=True),
+            nn.Linear(128, 128, bias=False)
+        )
+        self.img_projection_head = nn.Sequential(
+            nn.Linear(400, 128, bias = False),
+            nn.BatchNorm1d(128),
+            nn.ReLU(inplace=True),
+            nn.Linear(128, 128, bias = False)
+        ) 
+
+        # self.fc_Radio = nn.Linear(512, 256)
+        # self.fc_img = nn.Linear(400, 256)
+        self.fc_text = nn.Linear(768, 256)
+        self.SA = SelfAttention(16, 400+256+256, 400+256+256, hidden_dropout_prob=0.2)
+        self.classify_head = DenseNet(layer_num=(6, 12, 24, 16), growth_rate=32, in_channels=1, classes=2)
+
+    def forward(self, input_ids, attention_mask, token_type_ids, radio, img):
+        '''
+        :param radio: torch.Size([B, 1781])
+        :param img: torch.Size([B, 1, 64, 512, 512])
+        :return: torch.Size([B, 2])
+        '''
+        radiomic_feature = self.Radio_encoder(radio)
+        vision_feature = self.Resnet(img)
+
+        radiomic_feature_pj = self.radio_projection_head(radiomic_feature)
+        vision_feature_pj = self.img_projection_head(vision_feature)
+
+        text_feature = self.bert(input_ids=input_ids, attention_mask=attention_mask,
+                                 token_type_ids=token_type_ids).pooler_output
+        
+        # radiomic_feature = self.fc_Radio(radiomic_feature)
+        # vision_feature = self.fc_img(vision_feature)
+        text_feature = self.fc_text(text_feature)
+
+        global_feature = torch.cat((radiomic_feature, vision_feature, text_feature), dim=1)
+        global_feature = torch.unsqueeze(global_feature, dim=1)
+        global_feature = self.SA(global_feature)
+        return radiomic_feature_pj, vision_feature_pj, self.classify_head(global_feature)
 
 
 class Radio_only_Mamba(nn.Module):
@@ -297,4 +374,23 @@ class Radio_only_SA(nn.Module):
         radio = self.projection1(radio)
         radio = torch.unsqueeze(radio, dim=1)
         feature = self.SA(radio)
+        return self.classify_head(feature)
+
+
+class Multi_model_Mamba_SA(nn.Module):
+    def __init__(self):
+        super(Multi_model_Mamba_SA, self).__init__()
+        self.name = 'Multi_model_Mamba_SA'
+        self.mamba_block = Radiomic_mamba_encoder(num_features=1781)
+        self.mamba_block_clinic = Radiomic_mamba_encoder(num_features=58)
+        self.Resnet = _3D_ResNet_50()
+        self.SA = SelfAttention(16, 512, 512, hidden_dropout_prob=0.2)
+        self.classify_head = DenseNet(layer_num=(6, 12, 24, 16), growth_rate=32, in_channels=1, classes=2)
+
+    def forward(self, cli, radio, img):
+        radio_mamba_output = self.mamba_block(radio)
+        cli_mamba_output = self.mamba_block_clinic(cli)
+        vision_feature = self.Resnet(img)
+        global_feature = torch.cat((radio_mamba_output, cli_mamba_output, vision_feature), dim=1)
+        feature = torch.unsqueeze(global_feature, dim=1)
         return self.classify_head(feature)
