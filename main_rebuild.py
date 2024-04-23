@@ -19,10 +19,12 @@ def prepare_to_train(model_index, seed, device, fold):
     except KeyError:
         print('model not in model_object!')
     torch.cuda.empty_cache()
+
     '''
     Dataset init, You can refer to the dataset format defined in data/dataset.py to define your private dataset
     '''
     dataset = Liver_normalization_dataset(experiment_settings['Data'], mode=experiment_settings['Dataset_mode'])
+    # dataset = Liver_dataset(summery_path=experiment_settings['Data'], mode=experiment_settings['Dataset_mode'])
     torch.manual_seed(seed)
     # train_ratio = 0.7 train_dataset, test_dataset = random_split(dataset, [int(train_ratio * len(dataset)),
     # len(dataset) - int(train_ratio * len(dataset))]) trainDataLoader = torch.utils.data.DataLoader(train_dataset,
@@ -37,7 +39,7 @@ def prepare_to_train(model_index, seed, device, fold):
     test_dataset = torch.utils.data.Subset(dataset, test_index)
 
     trainDataLoader = torch.utils.data.DataLoader(train_dataset, batch_size=experiment_settings['Batch'], shuffle=True,
-                                                  num_workers=4, drop_last=False)
+                                                  num_workers=4, drop_last=True)
     testDataLoader = torch.utils.data.DataLoader(test_dataset, batch_size=experiment_settings['Batch'], shuffle=False,
                                                  num_workers=4)
     '''
@@ -62,8 +64,11 @@ def prepare_to_train(model_index, seed, device, fold):
     '''
     _model = experiment_settings['Model']
     model = _model()
+    # 如果有多个GPU可用，使用DataParallel来并行化模型
+    if torch.cuda.device_count() > 1:
+        observer.log("Using" + str(torch.cuda.device_count()) + "GPUs for training.\n")
+        model = torch.nn.DataParallel(model)
     observer.log(f'Use model : {str(experiment_settings)}\n')
-
     num_params = 0
     for p in model.parameters():
         if p.requires_grad:
@@ -88,9 +93,9 @@ def prepare_to_train(model_index, seed, device, fold):
 if __name__ == "__main__":
     # Adding necessary input arguments
     parser = argparse.ArgumentParser(description="add arguments to test")
-    parser.add_argument("--model", default='RadioMamba', type=str, help="model")
+    parser.add_argument("--model", default='climamba', type=str, help="model")
     parser.add_argument("--seed", default=42, type=int, help="seed given by LinkStart.py on cross Val")
-    parser.add_argument("--device", default='cuda:0', type=str)
+    parser.add_argument("--device", default='cuda', type=str)
     parser.add_argument("--fold", default=0, type=int, help="0~4")
     args = parser.parse_args()
 

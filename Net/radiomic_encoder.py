@@ -53,9 +53,9 @@ class Mamba_block(nn.Module):
         self.mamba_block = Mamba(
             # This module uses roughly 3 * expand * d_model^2 parameters
             d_model=1,  # Model dimension d_model 1
-            d_state=16,  # SSM state expansion factor 16
+            d_state=32,  # SSM state expansion factor 16
             d_conv=4,  # Local convolution width 4
-            expand=4,  # Block expansion factor 2
+            expand=8,  # Block expansion factor 2
         )
         self.norm = RMSNorm()
 
@@ -64,21 +64,22 @@ class Mamba_block(nn.Module):
 
 
 class Radiomic_mamba_encoder(nn.Module):
-    def __init__(self, num_features: int = 1781, depth: int = 32):
+    def __init__(self, num_features: int = 1781, depth: int = 4):
         """
             feature num -> 1781
             Radiomic_encoder based on Mamba model
         """
         super().__init__()
         self.projection1 = nn.Sequential(
-            nn.ReLU(inplace=True),
-            nn.Linear(num_features, 2048)
+            nn.ReLU(),
+            nn.Linear(num_features, 2048),
+            nn.LayerNorm(2048)
         )
         self.blocks = nn.ModuleList([Mamba_block() for _ in range(depth)])
         self.projection2 = nn.Sequential(
             nn.Linear(2048, 512),
-            nn.InstanceNorm1d(512),
-            nn.ReLU(inplace=True),
+            nn.LayerNorm(512),
+            nn.ReLU(),
             nn.Linear(512, 256)
         )
 
@@ -90,6 +91,30 @@ class Radiomic_mamba_encoder(nn.Module):
         x = torch.squeeze(x, dim=2)
         return self.projection2(x)
 
+
+class Radiomic_SA_encoder(nn.Module):
+    def __init__(self, num_features: int = 1781):
+        """
+            feature num -> 1781
+            Radiomic_encoder based on Mamba model
+        """
+        super().__init__()
+        self.projection1 = nn.Sequential(
+            nn.ReLU(inplace=True),
+            nn.Linear(num_features, 512)
+        )
+        self.sa = SelfAttention(16, 512, 512, hidden_dropout_prob=0.2)
+        self.projection2 = nn.Sequential(
+            nn.ReLU(inplace=True),
+            nn.Linear(512, 256)
+        )
+
+    def forward(self, x):
+        x = self.projection1(x)
+        x = torch.unsqueeze(x, dim=1)
+        x = self.sa(x)
+        x = torch.squeeze(x, dim=1)
+        return self.projection2(x)
 
 # from utils.Mamba_minimal import ModelArgs, ResidualBlock, RMSNorm
 

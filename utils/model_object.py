@@ -1,5 +1,5 @@
 from torch.nn import CrossEntropyLoss
-from torch.optim import Adam
+from torch.optim import Adam, SGD
 from Net.loss_functions import *
 from Net.api import *
 from Net.networks import *
@@ -35,13 +35,13 @@ models = {
         'Name': 'Radio Mamba Norm',
         'Data': './data/summery_new.txt',
         'Batch': 16,
-        'Lr': 0.001,
-        'Epoch': 200,
+        'Lr': 0.0001,
+        'Epoch': 300,
         'Dataset_mode': 'mamba_test',
         'Model': Radio_only_Mamba,
         'Optimizer': Adam,
         'Loss': CrossEntropyLoss,
-        'Run': run
+        'Run': run_single
     },
     'Fusion': {
         'Name': 'Fusion based on contrast learning',
@@ -57,16 +57,27 @@ models = {
     },
 
     'AllMamba': {
-        'Name': 'ALLModel with Mamba and SA',
+        'Name': 'ALLModelC',
         'Data': './data/summery_new.txt',
         'Batch': 2,
         'Lr': 0.001,
         'Epoch': 200,
         'Dataset_mode': 'all_model',
-        'Model': Multi_model_Mamba_SA,
+        'Model': Multi_model_MLP,
         'Optimizer': Adam,
         'Loss': CrossEntropyLoss,
         'Run': run_fusion_all
+    },
+    'climamba': {
+        'Name': '2model',
+        'Data': './data/summery_new.txt',
+        'Batch': 2,
+        'Lr': 0.001,
+        'Epoch': 200,
+        'Dataset_mode': '2_model',
+        'Model': Multi_model_mambacli,
+        'Optimizer': Adam,
+        'Loss': CrossEntropyLoss,
+        'Run': run_fusion_test
     }
-
 }

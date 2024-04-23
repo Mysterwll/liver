@@ -2,6 +2,19 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+class Gated_vision_mamba_encoder(nn.Module):
+    def __init__(self, in_channels: int = 1):
+        super(Gated_vision_mamba_encoder, self).__init__()
+        self.proj1 = nn.Conv3d(in_channels=in_channels, out_channels=in_channels, kernel_size=3, padding=1)
+        self.norm1 = nn.InstanceNorm3d(in_channels)
+        self.act1 = nn.ReLU()
+
+    def forward(self, x):
+        """
+        x: [B, C, D, H, W]
+        """
+        pass
+
 
 def _3D_ResNet_50(**kwargs):
     """"
@@ -9,6 +22,7 @@ def _3D_ResNet_50(**kwargs):
     """
     model = ResNet(Bottleneck, [3, 4, 6, 3], get_inplanes(), **kwargs)
     return model
+
 
 class pretrained_Resnet(nn.Module):
     def __init__(self):
@@ -18,16 +32,18 @@ class pretrained_Resnet(nn.Module):
         super().__init__()
         self.pt_Resnet = get_pretrained_Vision_Encoder()
         self.projection_head = nn.Sequential(
-                            nn.Linear(400, 128, bias = False),
-                            nn.BatchNorm1d(128),
-                            nn.ReLU(inplace=True),
-                            nn.Linear(128, 128, bias = False)
-                            ) 
+            nn.Linear(400, 128, bias=False),
+            nn.BatchNorm1d(128),
+            nn.ReLU(inplace=True),
+            nn.Linear(128, 128, bias=False)
+        )
+
     def forward(self, x):
         x = self.pt_Resnet(x)
         feat = x
         pj_feat = self.projection_head(feat)
         return feat, pj_feat
+
 
 def get_pretrained_Vision_Encoder():
     model = ResNet(Bottleneck, [3, 4, 6, 3], get_inplanes())
@@ -38,13 +54,14 @@ def get_pretrained_Vision_Encoder():
     state_dict.pop(keys[-1])
     state_dict.pop(keys[-2])
 
-    model.load_state_dict(state_dict , strict=False)
+    model.load_state_dict(state_dict, strict=False)
 
     for name, param in model.named_parameters():
         if name in state_dict.keys():
-            param.requires_grad = False      
+            param.requires_grad = False
 
     return model
+
 
 def get_inplanes():
     return [64, 128, 256, 512]

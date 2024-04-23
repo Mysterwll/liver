@@ -351,7 +351,7 @@ class Radio_only_Mamba(nn.Module):
     def __init__(self):
         super(Radio_only_Mamba, self).__init__()
         self.name = 'Radiomic_only with Mamba'
-        self.mamba_block = Radiomic_mamba_encoder(num_features=1783)
+        self.mamba_block = Radiomic_mamba_encoder(num_features=1781)
         self.classify_head = DenseNet(layer_num=(6, 12, 24, 16), growth_rate=32, in_channels=1, classes=2)
 
     def forward(self, radio):
@@ -384,7 +384,12 @@ class Multi_model_Mamba_SA(nn.Module):
         self.name = 'Multi_model_Mamba_SA'
         self.mamba_block = Radiomic_mamba_encoder(num_features=1781)
         self.mamba_block_clinic = Radiomic_mamba_encoder(num_features=58)
-        self.Resnet = _3D_ResNet_50()
+        self.Resnet = get_pretrained_Vision_Encoder()
+        self.projection = nn.Sequential(
+            nn.Linear(912, 512),
+            nn.LayerNorm(512),
+            nn.ReLU()
+        )
         self.SA = SelfAttention(16, 512, 512, hidden_dropout_prob=0.2)
         self.classify_head = DenseNet(layer_num=(6, 12, 24, 16), growth_rate=32, in_channels=1, classes=2)
 
@@ -393,5 +398,72 @@ class Multi_model_Mamba_SA(nn.Module):
         cli_mamba_output = self.mamba_block_clinic(cli)
         vision_feature = self.Resnet(img)
         global_feature = torch.cat((radio_mamba_output, cli_mamba_output, vision_feature), dim=1)
+        global_feature = self.projection(global_feature)
         feature = torch.unsqueeze(global_feature, dim=1)
-        return self.classify_head(feature)
+        feature = self.SA(feature)
+        output = self.classify_head(feature)
+        return output
+
+
+class Multi_model_mambacli(nn.Module):
+    def __init__(self):
+        super(Multi_model_mambacli, self).__init__()
+        self.name = 'Multi_model_Mamba_SA'
+        # self.mamba_block = Radiomic_mamba_encoder(num_features=1781)
+        self.mamba_block_clinic = Radiomic_mamba_encoder(num_features=58)
+        self.Resnet = get_pretrained_Vision_Encoder()
+        self.projection = nn.Sequential(
+            nn.Linear(912 - 256, 512),
+            nn.LayerNorm(512),
+            nn.ReLU()
+        )
+        self.SA = SelfAttention(16, 512, 512, hidden_dropout_prob=0.2)
+        self.classify_head = DenseNet(layer_num=(6, 12, 24, 16), growth_rate=32, in_channels=1, classes=2)
+
+    def forward(self, cli, img):
+        # radio_mamba_output = self.mamba_block(radio)
+        cli_mamba_output = self.mamba_block_clinic(cli)
+        vision_feature = self.Resnet(img)
+        global_feature = torch.cat([cli_mamba_output, vision_feature], dim=1)
+        global_feature = self.projection(global_feature)
+        feature = torch.unsqueeze(global_feature, dim=1)
+        feature = self.SA(feature)
+        output = self.classify_head(feature)
+        return output
+
+
+class Multi_model_MLP(nn.Module):
+    def __init__(self):
+        super(Multi_model_MLP, self).__init__()
+        self.name = 'Multi_model_Mamba_SA'
+        self.fc_radio = nn.Sequential(
+            nn.ReLU(),
+            nn.Linear(1781, 512),
+            nn.Linear(512, 256),
+            nn.LayerNorm(256)
+        )
+        self.fc_cli = nn.Sequential(
+            nn.ReLU(),
+            nn.Linear(58, 512),
+            nn.Linear(512, 256),
+            nn.LayerNorm(256)
+        )
+        self.Resnet = get_pretrained_Vision_Encoder()
+        self.projection = nn.Sequential(
+            nn.ReLU(),
+            nn.Linear(912, 512),
+            nn.LayerNorm(512)
+        )
+        self.SA = SelfAttention(16, 512, 512, hidden_dropout_prob=0.2)
+        self.classify_head = DenseNet(layer_num=(6, 12, 24, 16), growth_rate=32, in_channels=1, classes=2)
+
+    def forward(self, cli, radio, img):
+        radio_mamba_output = self.fc_radio(radio)
+        cli_mamba_output = self.fc_cli(cli)
+        vision_feature = self.Resnet(img)
+        global_feature = torch.cat((radio_mamba_output, cli_mamba_output, vision_feature), dim=1)
+        global_feature = self.projection(global_feature)
+        feature = torch.unsqueeze(global_feature, dim=1)
+        feature = self.SA(feature)
+        output = self.classify_head(feature)
+        return output
