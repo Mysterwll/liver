@@ -20,16 +20,16 @@ models = {
         'Run': run
     },
     'RadioSA': {
-        'Name': 'Radio SelfAttention only with header',
+        'Name': 'Radio SelfAttention Norm',
         'Data': './data/summery_new.txt',
         'Batch': 16,
-        'Lr': 0.001,
-        'Epoch': 200,
+        'Lr': 0.0001,
+        'Epoch': 300,
         'Dataset_mode': 'mamba_test',
         'Model': Radio_only_SA,
         'Optimizer': Adam,
         'Loss': CrossEntropyLoss,
-        'Run': run
+        'Run': run_single
     },
     'RadioMamba': {
         'Name': 'Radio Mamba Norm',
@@ -79,5 +79,17 @@ models = {
         'Optimizer': Adam,
         'Loss': CrossEntropyLoss,
         'Run': run_fusion_test
+    },
+    'CA3fusion': {
+        'Name': 'CA3fusion',
+        'Data': './data/summery_new.txt',
+        'Batch': 2,
+        'Lr': 0.0001,
+        'Epoch': 300,
+        'Dataset_mode': 'all_model',
+        'Model': Triple_model_CrossAttentionFusion,
+        'Optimizer': Adam,
+        'Loss': CrossEntropyLoss,
+        'Run': run_fusion_all
     }
 }

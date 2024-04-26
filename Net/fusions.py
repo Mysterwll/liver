@@ -1,6 +1,7 @@
 import math
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 class LayerNorm(nn.Module):
@@ -73,3 +74,67 @@ class SelfAttention(nn.Module):
         hidden_states = self.LayerNorm(hidden_states + input_tensor)
 
         return hidden_states
+
+
+class TriModalCrossAttention(nn.Module):
+    def __init__(self, input_dim):
+        super(TriModalCrossAttention, self).__init__()
+        self.W_q1 = nn.Linear(input_dim, input_dim)
+        self.W_k1 = nn.Linear(input_dim, input_dim)
+        self.W_v1 = nn.Linear(input_dim, input_dim)
+
+        self.W_q2 = nn.Linear(input_dim, input_dim)
+        self.W_k2 = nn.Linear(input_dim, input_dim)
+        self.W_v2 = nn.Linear(input_dim, input_dim)
+
+        self.W_q3 = nn.Linear(input_dim, input_dim)
+        self.W_k3 = nn.Linear(input_dim, input_dim)
+        self.W_v3 = nn.Linear(input_dim, input_dim)
+
+        self.W_o1 = nn.Linear(input_dim * 2, input_dim)
+        self.W_o2 = nn.Linear(input_dim * 2, input_dim)
+        self.W_o3 = nn.Linear(input_dim * 2, input_dim)
+        self.dropout = nn.Dropout(0.1)
+
+    def forward(self, x1, x2, x3):
+        # x1, x2, x3: [B, N, input_dim]
+        batch_size, seq_len, _ = x1.size()
+
+        # Linear transformations for each modality
+        queries1 = self.W_q1(x1)
+        keys2 = self.W_k2(x2)
+        values2 = self.W_v2(x2)
+
+        queries2 = self.W_q2(x2)
+        keys3 = self.W_k3(x3)
+        values3 = self.W_v3(x3)
+
+        queries3 = self.W_q3(x3)
+        keys1 = self.W_k1(x1)
+        values1 = self.W_v1(x1)
+
+        # Scaled dot-product attention
+        attention_scores1 = torch.matmul(queries1, keys2.transpose(-2, -1)) / (x1.size(-1) ** 0.5)  # [B, N, N]
+        attention_weights1 = F.softmax(attention_scores1, dim=-1)
+        context1 = torch.matmul(self.dropout(attention_weights1), values2)  # [B, N, input_dim]
+
+        attention_scores2 = torch.matmul(queries2, keys3.transpose(-2, -1)) / (x2.size(-1) ** 0.5)  # [B, N, N]
+        attention_weights2 = F.softmax(attention_scores2, dim=-1)
+        context2 = torch.matmul(self.dropout(attention_weights2), values3)  # [B, N, input_dim]
+
+        attention_scores3 = torch.matmul(queries3, keys1.transpose(-2, -1)) / (x3.size(-1) ** 0.5)  # [B, N, N]
+        attention_weights3 = F.softmax(attention_scores3, dim=-1)
+        context3 = torch.matmul(self.dropout(attention_weights3), values1)  # [B, N, input_dim]
+
+        # Concatenate context with input for each modality
+        combined1 = torch.cat((x1, context1), dim=-1)  # [B, N, input_dim * 2]
+        combined2 = torch.cat((x2, context2), dim=-1)  # [B, N, input_dim * 2]
+        combined3 = torch.cat((x3, context3), dim=-1)  # [B, N, input_dim * 2]
+
+        # Linear transformations and output for each modality
+        output1 = self.W_o1(combined1)
+        output2 = self.W_o2(combined2)
+        output3 = self.W_o3(combined3)
+
+        global_feature = torch.cat((output1, output2, output3), dim=1)
+        return global_feature

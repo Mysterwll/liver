@@ -3,7 +3,7 @@ from transformers import AutoModel
 
 from Net.header import DenseNet
 from Net.vision_encoder import _3D_ResNet_50, get_pretrained_Vision_Encoder, pretrained_Resnet
-from Net.fusions import SelfAttention
+from Net.fusions import *
 from Net.radiomic_encoder import *
 import torch.nn as nn
 
@@ -365,8 +365,9 @@ class Radio_only_SA(nn.Module):
         super(Radio_only_SA, self).__init__()
         self.name = 'Radiomic_only with SelfAttention'
         self.projection1 = nn.Sequential(
-            nn.ReLU(inplace=True),
-            nn.Linear(1775, 2048, bias=False)
+            nn.ReLU(),
+            nn.Linear(1781, 2048),
+            nn.LayerNorm(2048)
         )
         self.SA = SelfAttention(16, 2048, 2048, hidden_dropout_prob=0.2)
         self.classify_head = DenseNet(layer_num=(6, 12, 24, 16), growth_rate=32, in_channels=1, classes=2)
@@ -466,4 +467,31 @@ class Multi_model_MLP(nn.Module):
         feature = torch.unsqueeze(global_feature, dim=1)
         feature = self.SA(feature)
         output = self.classify_head(feature)
+        return output
+
+
+class Triple_model_CrossAttentionFusion(nn.Module):
+    def __init__(self):
+        super(Triple_model_CrossAttentionFusion, self).__init__()
+        self.name = 'Triple_model_CrossAttentionFusion'
+        self.mamba_block_radio = Radiomic_mamba_encoder(num_features=1781)
+        self.mamba_block_clinic = Radiomic_mamba_encoder(num_features=58)
+        self.Resnet = get_pretrained_Vision_Encoder()
+        self.fc_vis = nn.Linear(400, 256)
+        self.fusion = TriModalCrossAttention(input_dim=1)
+        self.classify_head = DenseNet(layer_num=(6, 12, 24, 16), growth_rate=16, in_channels=1, classes=2)
+
+    def forward(self, cli, radio, img):
+        cli_feature = self.mamba_block_clinic(cli)
+        radio_feature = self.mamba_block_radio(radio)
+        vision_feature = self.Resnet(img)
+        vision_feature = self.fc_vis(vision_feature)
+
+        cli_feature = torch.unsqueeze(cli_feature, dim=-1)
+        radio_feature = torch.unsqueeze(radio_feature, dim=-1)
+        vision_feature = torch.unsqueeze(vision_feature, dim=-1)
+        global_feature = self.fusion(cli_feature, radio_feature, vision_feature)
+
+        global_feature = global_feature.permute(0, 2, 1)
+        output = self.classify_head(global_feature)
         return output

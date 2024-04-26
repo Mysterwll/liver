@@ -56,9 +56,9 @@ def get_pretrained_Vision_Encoder():
 
     model.load_state_dict(state_dict, strict=False)
 
-    for name, param in model.named_parameters():
-        if name in state_dict.keys():
-            param.requires_grad = False
+    # for name, param in model.named_parameters():
+    #     if name in state_dict.keys():
+    #         param.requires_grad = False
 
     return model
 
