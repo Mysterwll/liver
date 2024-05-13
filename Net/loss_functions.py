@@ -44,29 +44,15 @@ class Constract_Loss(nn.Module):
 
         return total_loss
 
-
-class joint_loss(nn.Module):
-    def __init__(self):
-        super(joint_loss, self).__init__()
-        self.loss_cl = Constract_Loss('cuda')
-        self.loss_task = nn.CrossEntropyLoss()
-
-    def forward(self, modality1_features, modality2_features, logits, label):
-        cl_loss = self.loss_cl(modality1_features, modality2_features, 0.1)
-
-        task_loss = self.loss_task(logits, label)
-        loss = cl_loss + task_loss
-        return loss
-
-
 class Similarity_Distribution_Matching_Loss(nn.Module):
     """
     Similarity Distribution Matching (SDM) Loss,
     Adapted from: https://github.com/anosorae/IRRA
     """
 
-    def __init__(self):
+    def __init__(self, length):
         super(Similarity_Distribution_Matching_Loss, self).__init__()
+        self.length = length
 
     def forward(self, vision_fetures, text_fetures, labels, epsilon=1e-8):
         logit_scale = self.length
@@ -94,6 +80,32 @@ class Similarity_Distribution_Matching_Loss(nn.Module):
 
         return loss
 
+class joint_loss(nn.Module):
+    def __init__(self):
+        super(joint_loss, self).__init__()
+        self.w = nn.Parameter(torch.ones(2))
+        self.Cross_Entropy_Loss = nn.CrossEntropyLoss()
+        self.Similarity_Distribution_Matching_Loss_1 = Similarity_Distribution_Matching_Loss(2)
+        self.Similarity_Distribution_Matching_Loss_2 = Similarity_Distribution_Matching_Loss(2)
+        self.Similarity_Distribution_Matching_Loss_3 = Similarity_Distribution_Matching_Loss(2)
+
+    def forward(self, modality1_features, modality2_features,  modality3_features, labels, scores):
+
+        # w1 = torch.exp(self.w[0]) / torch.sum(torch.exp(self.w))
+        # w2 = torch.exp(self.w[1]) / torch.sum(torch.exp(self.w))
+        modality1_features = modality1_features.squeeze()
+        modality2_features = modality2_features.squeeze()
+        modality3_features = modality3_features.squeeze()
+
+        cross_entropy_loss = self.Cross_Entropy_Loss(scores, labels)
+        if labels.dim() == 1:
+            labels = labels.unsqueeze(1)
+        SDM_loss = self.Similarity_Distribution_Matching_Loss_1(modality1_features, modality2_features, labels)+\
+                    self.Similarity_Distribution_Matching_Loss_2(modality2_features, modality3_features, labels)+\
+                     self.Similarity_Distribution_Matching_Loss_3(modality1_features, modality3_features, labels)
+
+        # return w1 * cross_entropy_loss + w2 * SDM_loss
+        return cross_entropy_loss + 0.01 * SDM_loss
 
 if __name__ == '__main__':
     # smaller to test on local

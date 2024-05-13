@@ -190,7 +190,8 @@ class Liver_normalization_dataset(torch.utils.data.Dataset):
         vision = torch.Tensor(array)
         vision_tensor = torch.unsqueeze(vision, 0)
 
-        text_feature = self.data_dict[uid]['clinical_text']
+        if self.mode == 'fusion':
+            text_feature = self.data_dict[uid]['clinical_text']
         
         # usage of text data
         clinical = self.data_dict[uid]['features'][:-1781]

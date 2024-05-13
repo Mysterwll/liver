@@ -74,7 +74,27 @@ class SelfAttention(nn.Module):
         hidden_states = self.LayerNorm(hidden_states + input_tensor)
 
         return hidden_states
+    
+class MultiheadAttention(nn.Module):
+    def __init__(self, num_attention_heads, input_size, hidden_dropout_prob):
+        """
+        SelfAttention Module implemented by Pytorch
+        """
+        super(MultiheadAttention, self).__init__()
 
+        self.query = nn.Linear(input_size, input_size)
+        self.key = nn.Linear(input_size, input_size)
+        self.value = nn.Linear(input_size, input_size)
+        
+        self.multihead_attn = nn.MultiheadAttention(input_size, num_attention_heads, hidden_dropout_prob, batch_first=True)
+
+    def forward(self, input_tensor):
+        # input_tensor: [B, N, input_dim]
+        query = self.query(input_tensor)
+        key = self.key(input_tensor)
+        value = self.value(input_tensor)
+        output , _ = self.multihead_attn(query, key, value)
+        return output
 
 class TriModalCrossAttention(nn.Module):
     def __init__(self, input_dim):
