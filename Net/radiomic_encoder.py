@@ -22,7 +22,6 @@ class Radiomic_encoder(nn.Module):
         )
 
     def forward(self, x):
-        x = self.relu(x)
         x = self.fc1(x)
         x = self.bn1(x)
         x = self.relu(x)

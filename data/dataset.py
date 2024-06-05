@@ -90,6 +90,8 @@ class Liver_dataset(torch.utils.data.Dataset):
                 'attention_mask'].squeeze(0), vision_tensor, label_tensor
         elif self.mode == 'img':
             return vision_tensor, label_tensor
+        elif self.mode == 'radio':
+            return radio_tensor, label_tensor
         elif self.mode == 'self_supervised':
             return radio_tensor, vision_tensor
         elif self.mode == 'mamba_test':
@@ -134,6 +136,7 @@ class Liver_normalization_dataset(torch.utils.data.Dataset):
                 self.mean = pickle.load(f)
             with open('data/std.pkl', 'rb') as f:
                 self.std = pickle.load(f)
+                self.std = np.where(self.std == 0, 1, self.std)
         else:
             _ = Liver_dataset('data/summery_new.txt')
             _.normalization()

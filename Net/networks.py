@@ -7,7 +7,6 @@ from Net.fusions import *
 from Net.radiomic_encoder import *
 import torch.nn as nn
 
-
 class Vis_only(nn.Module):
     def __init__(self, use_pretrained=True):
         super(Vis_only, self).__init__()
@@ -497,39 +496,39 @@ class Triple_model_CrossAttentionFusion(nn.Module):
         return output
 
 
-class Triple_model_Self_CrossAttentionFusion(nn.Module):
-    def __init__(self):
-        super(Triple_model_Self_CrossAttentionFusion, self).__init__()
-        self.name = 'Triple_model_Self_CrossAttentionFusion'
-        self.mamba_block_radio = Radiomic_mamba_encoder(num_features=1781)
-        self.mamba_block_clinic = Radiomic_mamba_encoder(num_features=58)
-        self.Resnet = get_pretrained_Vision_Encoder()
-        self.fc_vis = nn.Linear(400, 256)
-        self.fusion = TriModalCrossAttention(input_dim=1)
-        self.SA1 = MultiheadAttention(8, 256, hidden_dropout_prob=0.2)
-        self.SA2 = MultiheadAttention(8, 256, hidden_dropout_prob=0.2)
-        self.SA3 = MultiheadAttention(8, 256, hidden_dropout_prob=0.2)
-        self.classify_head = DenseNet(layer_num=(6, 12, 24, 16), growth_rate=16, in_channels=1, classes=2)
+# class Triple_model_Self_CrossAttentionFusion(nn.Module):
+#     def __init__(self):
+#         super(Triple_model_Self_CrossAttentionFusion, self).__init__()
+#         self.name = 'Triple_model_Self_CrossAttentionFusion'
+#         self.mamba_block_radio = Radiomic_mamba_encoder(num_features=1781)
+#         self.mamba_block_clinic = Radiomic_mamba_encoder(num_features=58)
+#         self.Resnet = get_pretrained_Vision_Encoder()
+#         self.fc_vis = nn.Linear(400, 256)
+#         self.fusion = TriModalCrossAttention(input_dim=1)
+#         self.SA1 = MultiheadAttention(8, 256, hidden_dropout_prob=0.2)
+#         self.SA2 = MultiheadAttention(8, 256, hidden_dropout_prob=0.2)
+#         self.SA3 = MultiheadAttention(8, 256, hidden_dropout_prob=0.2)
+#         self.classify_head = DenseNet(layer_num=(6, 12, 24, 16), growth_rate=16, in_channels=1, classes=2)
 
-    def forward(self, cli, radio, img):
-        cli_feature = self.mamba_block_clinic(cli)
-        radio_feature = self.mamba_block_radio(radio)
-        vision_feature = self.Resnet(img)
-        vision_feature = self.fc_vis(vision_feature)
+#     def forward(self, cli, radio, img):
+#         cli_feature = self.mamba_block_clinic(cli)
+#         radio_feature = self.mamba_block_radio(radio)
+#         vision_feature = self.Resnet(img)
+#         vision_feature = self.fc_vis(vision_feature)
 
-        cli_feature = torch.unsqueeze(cli_feature, dim=1)
-        radio_feature = torch.unsqueeze(radio_feature, dim=1)
-        vision_feature = torch.unsqueeze(vision_feature, dim=1)
+#         cli_feature = torch.unsqueeze(cli_feature, dim=1)
+#         radio_feature = torch.unsqueeze(radio_feature, dim=1)
+#         vision_feature = torch.unsqueeze(vision_feature, dim=1)
 
-        cli_feature = self.SA1(cli_feature).permute(0,2,1)
-        radio_feature = self.SA2(radio_feature).permute(0,2,1)
-        vision_feature = self.SA3(vision_feature).permute(0,2,1)
+#         cli_feature = self.SA1(cli_feature).permute(0,2,1)
+#         radio_feature = self.SA2(radio_feature).permute(0,2,1)
+#         vision_feature = self.SA3(vision_feature).permute(0,2,1)
 
-        global_feature = self.fusion(cli_feature, radio_feature, vision_feature)      #[B,N,1]
+#         global_feature = self.fusion(cli_feature, radio_feature, vision_feature)      #[B,N,1]
 
-        global_feature = global_feature.permute(0, 2, 1)
-        output = self.classify_head(global_feature)
-        return output
+#         global_feature = global_feature.permute(0, 2, 1)
+#         output = self.classify_head(global_feature)
+#         return output
     
 
 class Triple_model_Self_CrossAttentionFusion_1(nn.Module):
@@ -645,7 +644,7 @@ class Triple_model_Self_CrossAttentionFusion_2(nn.Module):
         global_feature = global_feature.permute(0, 2, 1)
         output = self.classify_head(global_feature)
 
-        return radio_feature.squeeze(), vision_feature.squeeze(), cli_feature.squeeze(), output
+        return radio_feature, vision_feature, cli_feature, output
 
 class Triple_model_Self_CrossAttentionFusion_3(nn.Module):
     def __init__(self):
@@ -686,3 +685,246 @@ class Triple_model_Self_CrossAttentionFusion_3(nn.Module):
         output = self.classify_head(global_feature)
 
         return radio_feature, vision_feature, cli_feature, output
+
+class Triple_model_Self_CrossAttentionFusion(nn.Module):
+    """
+    simple radio encoder, pretrained_Vision_Encoder, biobert
+    """
+    def __init__(self):
+        super(Triple_model_Self_CrossAttentionFusion, self).__init__()
+        self.name = 'Triple_model_Self_CrossAttentionFusion'
+        self.Radio_encoder = Radiomic_encoder(num_features=1781)
+        self.Radio_encoder.projection_head = nn.Identity()
+
+        self.Resnet = get_pretrained_Vision_Encoder()
+
+        self.bert = AutoModel.from_pretrained("./models/Bio_ClinicalBERT")
+
+        self.fc_Radio = nn.Linear(512, 256)
+        self.fc_vis = nn.Linear(400, 256)
+        self.fc_text = nn.Linear(768, 256)
+
+        self.fusion = TriModalCrossAttention(input_dim=1)
+        self.SA1 = SelfAttention(16, 256, 256, hidden_dropout_prob=0.2)
+        self.SA2 = SelfAttention(16, 256, 256, hidden_dropout_prob=0.2)
+        self.SA3 = SelfAttention(16, 256, 256, hidden_dropout_prob=0.2)
+
+        self.classify_head = DenseNet(layer_num=(6, 12, 24, 16), growth_rate=32, in_channels=1, classes=2)
+
+    def forward(self, input_ids, attention_mask, token_type_ids, radio, img):
+        '''
+        :param radio: torch.Size([B, 1781])
+        :param img: torch.Size([B, 1, 64, 512, 512])
+        :return: torch.Size([B, 2])
+        '''
+        radio_feature = self.Radio_encoder(radio)[0]
+        vision_feature = self.Resnet(img)
+        cli_feature = self.bert(input_ids=input_ids, attention_mask=attention_mask,
+                                 token_type_ids=token_type_ids).pooler_output
+        
+        radio_feature = self.fc_Radio(radio_feature)
+        vision_feature = self.fc_vis(vision_feature)
+        cli_feature = self.fc_text(cli_feature)
+
+        cli_feature = torch.unsqueeze(cli_feature, dim=1)
+        radio_feature = torch.unsqueeze(radio_feature, dim=1)
+        vision_feature = torch.unsqueeze(vision_feature, dim=1)
+
+        cli_feature = self.SA1(cli_feature)
+        radio_feature = self.SA2(radio_feature)
+        vision_feature = self.SA3(vision_feature)
+
+        cli_feature_tr = cli_feature.permute(0,2,1)
+        radio_feature_tr = radio_feature.permute(0,2,1)
+        vision_feature_tr = vision_feature.permute(0,2,1)
+
+        _ , _, _, global_feature = self.fusion(cli_feature_tr, radio_feature_tr, vision_feature_tr)      #[B,N,1]
+
+        global_feature = global_feature.permute(0, 2, 1)
+        output = self.classify_head(global_feature)
+
+        return radio_feature, vision_feature, cli_feature, output
+
+
+class Triple_model_Cross_SelfAttentionFusion(nn.Module):
+    """
+    simple radio encoder, pretrained_Vision_Encoder, biobert
+    """
+    def __init__(self):
+        super(Triple_model_Cross_SelfAttentionFusion, self).__init__()
+        self.name = 'Triple_model_Cross_SelfAttentionFusion'
+        self.Radio_encoder = Radiomic_encoder(num_features=1781)
+        self.Radio_encoder.projection_head = nn.Identity()
+
+        self.Resnet = get_pretrained_Vision_Encoder()
+
+        self.bert = AutoModel.from_pretrained("./models/Bio_ClinicalBERT")
+
+        self.fc_Radio = nn.Linear(512, 256)
+        self.fc_vis = nn.Linear(400, 256)
+        self.fc_text = nn.Linear(768, 256)
+
+        self.fusion = TriModalCrossAttention(input_dim=1)
+        self.SA1 = SelfAttention(16, 256, 256, hidden_dropout_prob=0.2)
+        self.SA2 = SelfAttention(16, 256, 256, hidden_dropout_prob=0.2)
+        self.SA3 = SelfAttention(16, 256, 256, hidden_dropout_prob=0.2)
+
+        self.classify_head = DenseNet(layer_num=(6, 12, 24, 16), growth_rate=32, in_channels=1, classes=2)
+
+    def forward(self, input_ids, attention_mask, token_type_ids, radio, img):
+        '''
+        :param radio: torch.Size([B, 1781])
+        :param img: torch.Size([B, 1, 64, 512, 512])
+        :return: torch.Size([B, 2])
+        '''
+        radio_feature = self.Radio_encoder(radio)[0]
+        vision_feature = self.Resnet(img)
+        cli_feature = self.bert(input_ids=input_ids, attention_mask=attention_mask,
+                                 token_type_ids=token_type_ids).pooler_output
+        
+        radio_feature = self.fc_Radio(radio_feature)
+        vision_feature = self.fc_vis(vision_feature)
+        cli_feature = self.fc_text(cli_feature)
+
+        cli_feature = torch.unsqueeze(cli_feature, dim=2)
+        radio_feature = torch.unsqueeze(radio_feature, dim=2)
+        vision_feature = torch.unsqueeze(vision_feature, dim=2)
+
+        cli_feature, radio_feature, vision_feature, _ = self.fusion(cli_feature, radio_feature, vision_feature)      #[B,N,1]
+
+        cli_feature_tr = cli_feature.permute(0,2,1)
+        radio_feature_tr = radio_feature.permute(0,2,1)
+        vision_feature_tr = vision_feature.permute(0,2,1)
+
+        cli_feature = self.SA1(cli_feature_tr)
+        radio_feature = self.SA2(radio_feature_tr)
+        vision_feature = self.SA3(vision_feature_tr)
+
+        global_feature = torch.cat([cli_feature, radio_feature, vision_feature], dim=2)
+        
+        output = self.classify_head(global_feature)
+
+        return radio_feature, vision_feature, cli_feature, output
+    
+class Triple_model_test_1(nn.Module):
+    """
+    simple radio encoder, pretrained_Vision_Encoder, biobert
+    """
+    def __init__(self):
+        super(Triple_model_test_1, self).__init__()
+        self.name = 'Triple_model_test_1'
+        self.Radio_encoder = Radiomic_encoder(num_features=1781)
+        self.Radio_encoder.projection_head = nn.Identity()
+
+        self.Resnet = get_pretrained_Vision_Encoder()
+
+        self.bert = AutoModel.from_pretrained("./models/Bio_ClinicalBERT")
+
+        self.fc_Radio = nn.Linear(512, 256)
+        self.fc_vis = nn.Linear(400, 256)
+        self.fc_text = nn.Linear(768, 256)
+
+        self.fusion = TriModalCrossAttention(input_dim=1)
+        self.SA1 = MultiheadAttention(8, 256, hidden_dropout_prob=0.2)
+        self.SA2 = MultiheadAttention(8, 256, hidden_dropout_prob=0.2)
+        self.SA3 = MultiheadAttention(8, 256, hidden_dropout_prob=0.2)
+
+        self.classify_head = DenseNet(layer_num=(6, 12, 24, 16), growth_rate=32, in_channels=1, classes=2)
+
+    def forward(self, input_ids, attention_mask, token_type_ids, radio, img):
+        '''
+        :param radio: torch.Size([B, 1781])
+        :param img: torch.Size([B, 1, 64, 512, 512])
+        :return: torch.Size([B, 2])
+        '''
+        radio_feature = self.Radio_encoder(radio)[0]
+        vision_feature = self.Resnet(img)
+        cli_feature = self.bert(input_ids=input_ids, attention_mask=attention_mask,
+                                 token_type_ids=token_type_ids).pooler_output
+        
+        radio_feature = self.fc_Radio(radio_feature)
+        vision_feature = self.fc_vis(vision_feature)
+        cli_feature = self.fc_text(cli_feature)
+
+        cli_feature = torch.unsqueeze(cli_feature, dim=1)
+        radio_feature = torch.unsqueeze(radio_feature, dim=1)
+        vision_feature = torch.unsqueeze(vision_feature, dim=1)
+
+        cli_feature = self.SA1(cli_feature)
+        radio_feature = self.SA2(radio_feature)
+        vision_feature = self.SA3(vision_feature)
+
+        cli_feature_tr = cli_feature.permute(0,2,1)
+        radio_feature_tr = radio_feature.permute(0,2,1)
+        vision_feature_tr = vision_feature.permute(0,2,1)
+
+        global_feature = self.fusion(cli_feature_tr, radio_feature_tr, vision_feature_tr)      #[B,N,1]
+
+        global_feature = global_feature.permute(0, 2, 1)
+        output = self.classify_head(global_feature)
+
+        return radio_feature, vision_feature, cli_feature, output
+    
+
+class Triple_model_test_2(nn.Module):
+    """
+    simple radio encoder, pretrained_Vision_Encoder, biobert
+    """
+    def __init__(self):
+        super(Triple_model_test_2, self).__init__()
+        self.name = 'Triple_model_test_2'
+        self.Radio_encoder = Radiomic_encoder(num_features=1781)
+        self.Radio_encoder.projection_head = nn.Identity()
+
+        self.Resnet = get_pretrained_Vision_Encoder()
+
+        self.bert = AutoModel.from_pretrained("./models/Bio_ClinicalBERT")
+
+        self.fc_Radio = nn.Linear(512, 256)
+        self.fc_vis = nn.Linear(400, 256)
+        self.fc_text = nn.Linear(768, 256)
+
+        self.fusion = TriModalCrossAttention(input_dim=1)
+        self.SA1 = SelfAttention(8, 256, 256, hidden_dropout_prob=0.2)
+        self.SA2 = SelfAttention(8, 256, 256, hidden_dropout_prob=0.2)
+        self.SA3 = SelfAttention(8, 256, 256, hidden_dropout_prob=0.2)
+
+        self.classify_head = DenseNet(layer_num=(6, 12, 24, 16), growth_rate=32, in_channels=1, classes=2)
+
+    def forward(self, input_ids, attention_mask, token_type_ids, radio, img):
+        '''
+        :param radio: torch.Size([B, 1781])
+        :param img: torch.Size([B, 1, 64, 512, 512])
+        :return: torch.Size([B, 2])
+        '''
+        radio_feature = self.Radio_encoder(radio)[0]
+        vision_feature = self.Resnet(img)
+        cli_feature = self.bert(input_ids=input_ids, attention_mask=attention_mask,
+                                 token_type_ids=token_type_ids).pooler_output
+        
+        radio_feature = self.fc_Radio(radio_feature)
+        vision_feature = self.fc_vis(vision_feature)
+        cli_feature = self.fc_text(cli_feature)
+
+        cli_feature = torch.unsqueeze(cli_feature, dim=1)
+        radio_feature = torch.unsqueeze(radio_feature, dim=1)
+        vision_feature = torch.unsqueeze(vision_feature, dim=1)
+
+        cli_feature = self.SA1(cli_feature)
+        radio_feature = self.SA2(radio_feature)
+        vision_feature = self.SA3(vision_feature)
+
+        cli_feature_tr = cli_feature.permute(0,2,1)
+        radio_feature_tr = radio_feature.permute(0,2,1)
+        vision_feature_tr = vision_feature.permute(0,2,1)
+
+        global_feature = self.fusion(cli_feature_tr, radio_feature_tr, vision_feature_tr)      #[B,N,1]
+
+        global_feature = global_feature.permute(0, 2, 1)
+        output = self.classify_head(global_feature)
+
+        return radio_feature, vision_feature, cli_feature, output
+
+
+
+

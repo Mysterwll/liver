@@ -157,7 +157,7 @@ class TriModalCrossAttention(nn.Module):
         output3 = self.W_o3(combined3)
 
         global_feature = torch.cat((output1, output2, output3), dim=1)
-        return global_feature
+        return output1, output2, output3, global_feature
 
 
 class CrossAttention(nn.Module):

@@ -5,6 +5,7 @@ from Net.api import *
 from Net.networks import *
 from Net.radiomic_encoder import *
 from Net.vision_encoder import *
+from Net.cp_networks import *
 
 models = {
     'Base': {
@@ -151,5 +152,103 @@ models = {
         'Optimizer': Adam,
         'Loss': joint_loss,
         'Run': run_fusion_all_1
+    },
+    'SCA3fusion_new': {
+        'Name': 'SCA3fusion without mamba',
+        'Data': './data/summery_new.txt',
+        'Batch': 2,
+        'Lr': 0.0001,
+        'Epoch': 300,
+        'Dataset_mode': 'fusion',
+        'Model': Triple_model_Self_CrossAttentionFusion,
+        'Optimizer': Adam,
+        'Loss': joint_loss,
+        'Run': run_main_1
+    },
+    'CSA3fusion': {
+        'Name': 'CSA3fusion without mamba',
+        'Data': './data/summery_new.txt',
+        'Batch': 2,
+        'Lr': 0.0001,
+        'Epoch': 300,
+        'Dataset_mode': 'fusion',
+        'Model': Triple_model_Cross_SelfAttentionFusion,
+        'Optimizer': Adam,
+        'Loss': joint_loss,
+        'Run': run_main_1
+    },
+    'SCA3fusion_test_1': {
+        'Name': 'SCA3fusion without mamba with joint loss',
+        'Data': './data/summery_new.txt',
+        'Batch': 2,
+        'Lr': 0.0001,
+        'Epoch': 300,
+        'Dataset_mode': 'fusion',
+        'Model': Triple_model_test_1,
+        'Optimizer': Adam,
+        'Loss': joint_loss,
+        'Run': run_main_1
+    },
+
+    'SCA3fusion_test_2': {
+        'Name': 'SCA3fusion without mamba with joint loss',
+        'Data': './data/summery_new.txt',
+        'Batch': 2,
+        'Lr': 0.0001,
+        'Epoch': 300,
+        'Dataset_mode': 'fusion',
+        'Model': Triple_model_test_2,
+        'Optimizer': Adam,
+        'Loss': joint_loss,
+        'Run': run_main_1
+    },
+    'Resnet50': {
+        'Name': 'Resnet50',
+        'Data': './data/summery_new.txt',
+        'Batch': 2,
+        'Lr': 0.0001,
+        'Epoch': 300,
+        'Dataset_mode': 'img',
+        'Model': Resnet50,
+        'Optimizer': Adam,
+        'Loss': CrossEntropyLoss,
+        'Run': run
+    },
+    'ViT': {
+        'Name': 'ViT',
+        'Data': './data/summery_new.txt',
+        'Batch': 2,
+        'Lr': 0.0001,
+        'Epoch': 300,
+        'Dataset_mode': 'img',
+        'Model': MyViT,
+        'Optimizer': Adam,
+        'Loss': CrossEntropyLoss,
+        'Run': run
+    },
+    'HFBSurv': {
+        'Name': 'HFBSurv',
+        'Data': './data/summery_new.txt',
+        'Batch': 2,
+        'Lr': 0.0001,
+        'Epoch': 300,
+        'Dataset_mode': 'fusion',
+        'Model': HFBSurv,
+        'Optimizer': Adam,
+        'Loss': CrossEntropyLoss,
+        'Run': run_main
+    },
+    'MMD': {
+        'Name': 'MMD',
+        'Data': './data/summery_new.txt',
+        'Batch': 2,
+        'Lr': 0.0001,
+        'Epoch': 300,
+        'Dataset_mode': 'fusion',
+        'Model': MMD,
+        'Optimizer': Adam,
+        'Loss': CrossEntropyLoss,
+        'Run': run_main
     }
+
 }

@@ -261,7 +261,9 @@ def run_main(observer, epochs, train_loader, test_loader, model, device, optimiz
                 _, predictions = torch.max(outputs, dim=1)
                 observer.update(predictions, label)
 
-        observer.excute(epoch)
+        if observer.excute(epoch):       
+            print("Early stopping")
+            break
     observer.finish()
 
 def run_main_1(observer, epochs, train_loader, test_loader, model, device, optimizer, criterion):
@@ -299,7 +301,9 @@ def run_main_1(observer, epochs, train_loader, test_loader, model, device, optim
                 _, predictions = torch.max(outputs, dim=1)
                 observer.update(predictions, label)
 
-        observer.excute(epoch)
+        if observer.excute(epoch):       
+            print("Early stopping")
+            break
     observer.finish()
 
 

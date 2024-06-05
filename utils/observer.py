@@ -24,6 +24,7 @@ class Runtime_Observer:
         self.test_F1 = torchmetrics.F1Score(num_classes=2, task='binary').to(device)
         self.summary = SummaryWriter(log_dir=self.log_dir + '/summery')
         self.log_ptr.write('exp:' + str(_kwargs['name']) + '  seed -> ' + str(_kwargs['seed']))
+        self.early_stopping = EarlyStopping(patience=50, verbose=True)
 
     def update(self, prediction, label):
         self.test_acc.update(prediction, label)
@@ -43,6 +44,8 @@ class Runtime_Observer:
         total_auc = self.test_auc.compute()
         total_F1 = self.test_F1.compute()
 
+        self.early_stopping(total_acc)
+        
         self.summary.add_scalar('val_acc', total_acc, epoch)
         self.summary.add_scalar('val_recall', total_recall, epoch)
         self.summary.add_scalar('val_precision', total_precision, epoch)
@@ -63,6 +66,8 @@ class Runtime_Observer:
                    "best accuracy : %4.2f%%" % (self.best_dicts['acc'] * 100) \
                    + " produced @epoch %3d\n" % (self.best_dicts['epoch'] + 1)
         self.log(log_info)
+
+        return self.early_stopping.early_stop
 
     def record(self, epoch, train_loss, val_loss):
         self.summary.add_scalar('train_loss', train_loss, epoch)
@@ -263,3 +268,34 @@ class AverageMeter(object):
         self.sum += val * n
         self.count += n
         self.avg = self.sum / self.count
+
+class EarlyStopping:
+    """Early stops the training if validation loss doesn't improve after a given patience."""
+    def __init__(self,  patience=7, verbose=False):
+        """
+        Args:
+            patience (int): How long to wait after last time validation loss improved.
+                            Default: 7
+            verbose (bool): If True, prints a message for each validation loss improvement.
+                            Default: False
+        """
+        self.patience = patience
+        self.verbose = verbose
+        self.counter = 0
+        self.best_score = None
+        self.early_stop = False
+
+    def __call__(self, val_acc):
+
+        score = val_acc
+
+        if self.best_score is None:
+            self.best_score = score
+        elif score < self.best_score:
+            self.counter += 1
+            # print('EarlyStopping counter: {} out of {}'.format(self.counter, self.patience))
+            if self.counter >= self.patience:
+                self.early_stop = True
+        else:
+            self.best_score = score
+            self.counter = 0
