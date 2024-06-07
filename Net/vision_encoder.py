@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+
 class Gated_vision_mamba_encoder(nn.Module):
     def __init__(self, in_channels: int = 1):
         super(Gated_vision_mamba_encoder, self).__init__()
@@ -269,3 +270,68 @@ class ResNet(nn.Module):
         x = self.fc(x)
 
         return x
+
+
+from mamba_ssm import Mamba
+
+
+class Omnidirectional_3D_Mamba(nn.Module):
+    def __init__(self, in_channels, d_state=16, d_conv=4, expand=2):
+        super(Omnidirectional_3D_Mamba, self).__init__()
+        self.mamba = Mamba(
+            d_model=in_channels,  # Model dimension d_model
+            d_state=d_state,  # SSM state expansion factor
+            d_conv=d_conv,  # Local convolution width
+            expand=expand  # Block expansion factor
+        )
+        self.projection_dim = nn.Sequential(
+            nn.ReLU(),
+            nn.BatchNorm1d(in_channels),
+            nn.Linear(in_channels, 1)
+        )
+        self.pool = nn.AdaptiveMaxPool1d(128)
+
+    def forward(self, x):
+        B, C, D, H, W = x.shape
+        elements = D * H * W
+
+        x_flat_D = x.permute(0, 1, 2, 3, 4).reshape(B, C, elements).transpose(-1, -2)
+        x_flat_H = x.permute(0, 1, 3, 4, 2).reshape(B, C, elements).transpose(-1, -2)
+        x_flat_W = x.permute(0, 1, 4, 2, 3).reshape(B, C, elements).transpose(-1, -2)
+
+        feature_D = self.mamba(x_flat_D)
+        feature_H = self.mamba(x_flat_H)
+        feature_W = self.mamba(x_flat_W)
+
+        feature_D = feature_D.view(-1, C)
+        feature_H = feature_H.view(-1, C)
+        feature_W = feature_W.view(-1, C)
+
+        feature_D = self.projection_dim(feature_D)
+        feature_H = self.projection_dim(feature_H)
+        feature_W = self.projection_dim(feature_W)
+
+        feature_D = feature_D.view(B, elements, 1).transpose(-1, -2)
+        feature_H = feature_H.view(B, elements, 1).transpose(-1, -2)
+        feature_W = feature_W.view(B, elements, 1).transpose(-1, -2)
+
+        feature_D = self.pool(feature_D)
+        feature_H = self.pool(feature_H)
+        feature_W = self.pool(feature_W)
+
+        feature = torch.cat([feature_D, feature_H, feature_W], dim=-1)
+
+        return feature
+
+
+if __name__ == "__main__":
+    device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+    input = torch.randn((2, 1, 32, 256, 256)).to(device)
+    model = Omnidirectional_3D_Mamba(in_channels=1).to(device)
+    num_params = 0
+    for p in model.parameters():
+        if p.requires_grad:
+            num_params += p.numel()
+    print(f"num: {num_params}")
+    output = model(input)
+    print(output.shape)

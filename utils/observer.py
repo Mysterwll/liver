@@ -38,6 +38,14 @@ class Runtime_Observer:
         self.log_ptr.write(info)
 
     def excute(self, epoch):
+        def _save():
+            self.best_dicts['acc'] = total_acc
+            self.best_dicts['epoch'] = epoch
+            self.best_dicts['auc'] = total_auc
+            self.best_dicts['f1'] = total_F1
+            self.best_dicts['p'] = total_precision
+            self.best_dicts['recall'] = total_recall
+
         total_acc = self.test_acc.compute()
         total_recall = self.test_recall.compute()
         total_precision = self.test_precision.compute()
@@ -53,13 +61,13 @@ class Runtime_Observer:
         self.summary.add_scalar('val_f1', total_F1, epoch)
 
         if total_acc >= self.best_dicts['acc']:
+            _save()
             if total_auc >= self.best_dicts['auc']:
-                self.best_dicts['acc'] = total_acc
-                self.best_dicts['epoch'] = epoch
-                self.best_dicts['auc'] = total_auc
-                self.best_dicts['f1'] = total_F1
-                self.best_dicts['p'] = total_precision
-                self.best_dicts['recall'] = total_recall
+                _save()
+                if total_auc >= self.best_dicts['f1']:
+                    _save()
+                    if abs(total_precision - total_recall) <= abs(self.best_dicts['p'] - self.best_dicts['recall']):
+                        _save()
 
         log_info = "-------\n" + "Epoch %d:\n" % (epoch + 1) \
                    + "Val Accuracy: %4.2f%%  || " % (total_acc * 100) + \
@@ -74,8 +82,8 @@ class Runtime_Observer:
         self.summary.add_scalar('val_loss', val_loss, epoch)
         # self.summary.add_scalar('Linear_acc', test_acc, epoch)
 
-        self.log(f"Epoch {epoch+1}, Average train Loss: {train_loss}\n" \
-            +f'Average val Loss:{val_loss}')
+        self.log(f"Epoch {epoch + 1}, Average train Loss: {train_loss}\n" \
+                 + f'Average val Loss:{val_loss}')
 
     def record_loss(self, epoch, loss, tloss):
         self.summary.add_scalar('train_loss', loss, epoch)
@@ -171,8 +179,8 @@ class Runtime_Observer_test:
         self.summary.add_scalar('val_loss', val_loss, epoch)
         # self.summary.add_scalar('Linear_acc', test_acc, epoch)
 
-        self.log(f"Epoch {epoch+1}, Average train Loss: {train_loss}\n" \
-            +f'Average val Loss:{val_loss}')
+        self.log(f"Epoch {epoch + 1}, Average train Loss: {train_loss}\n" \
+                 + f'Average val Loss:{val_loss}')
 
     def reset(self):
         self.test_acc.reset()
@@ -193,6 +201,7 @@ class Runtime_Observer_test:
         self.log(finish_info)
         self.log_ptr.close()
 
+
 class Test_Observer:
     def __init__(self, log_dir, device='cuda', **kwargs):
         """
@@ -212,7 +221,7 @@ class Test_Observer:
         self.test_precision = torchmetrics.Precision(num_classes=2, task='binary').to(device)
         self.test_auc = torchmetrics.AUROC(num_classes=2, task='binary').to(device)
         self.test_F1 = torchmetrics.F1Score(num_classes=2, task='binary').to(device)
-        
+
         self.log_ptr.write('exp:' + str(_kwargs['name']) + '  seed -> ' + str(_kwargs['seed']))
 
     def update(self, prediction, label):

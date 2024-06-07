@@ -2,10 +2,11 @@ import torch
 from transformers import AutoModel
 
 from Net.header import DenseNet
-from Net.vision_encoder import _3D_ResNet_50, get_pretrained_Vision_Encoder, pretrained_Resnet
+from Net.vision_encoder import _3D_ResNet_50, get_pretrained_Vision_Encoder, pretrained_Resnet, Omnidirectional_3D_Mamba
 from Net.fusions import *
 from Net.radiomic_encoder import *
 import torch.nn as nn
+
 
 class Vis_only(nn.Module):
     def __init__(self, use_pretrained=True):
@@ -243,6 +244,7 @@ try to fusion radiomic,img and text.
 Still coding....
 """
 
+
 class Fusion_2stage(nn.Module):
     def __init__(self, radio_encoder_path, img_encoder_path):
         super(Fusion_2stage, self).__init__()
@@ -268,7 +270,7 @@ class Fusion_2stage(nn.Module):
         # self.fc_Radio = nn.Linear(512, 256)
         # self.fc_img = nn.Linear(400, 256)
         self.fc_text = nn.Linear(768, 256)
-        self.SA = SelfAttention(16, 512+400+256, 512+400+256, hidden_dropout_prob=0.2)
+        self.SA = SelfAttention(16, 512 + 400 + 256, 512 + 400 + 256, hidden_dropout_prob=0.2)
         self.classify_head = DenseNet(layer_num=(6, 12, 24, 16), growth_rate=32, in_channels=1, classes=2)
 
     def forward(self, input_ids, attention_mask, token_type_ids, radio, img):
@@ -282,7 +284,7 @@ class Fusion_2stage(nn.Module):
             vision_feature = self.Resnet(img)[0]
         text_feature = self.bert(input_ids=input_ids, attention_mask=attention_mask,
                                  token_type_ids=token_type_ids).pooler_output
-        
+
         # radiomic_feature = self.fc_Radio(radiomic_feature)
         # vision_feature = self.fc_img(vision_feature)
         text_feature = self.fc_text(text_feature)
@@ -291,6 +293,7 @@ class Fusion_2stage(nn.Module):
         global_feature = torch.unsqueeze(global_feature, dim=1)
         global_feature = self.SA(global_feature)
         return self.classify_head(global_feature)
+
 
 class Fusion_Main(nn.Module):
     def __init__(self):
@@ -309,16 +312,16 @@ class Fusion_Main(nn.Module):
             nn.Linear(128, 128, bias=False)
         )
         self.img_projection_head = nn.Sequential(
-            nn.Linear(400, 128, bias = False),
+            nn.Linear(400, 128, bias=False),
             nn.BatchNorm1d(128),
             nn.ReLU(inplace=True),
-            nn.Linear(128, 128, bias = False)
-        ) 
+            nn.Linear(128, 128, bias=False)
+        )
 
         # self.fc_Radio = nn.Linear(512, 256)
         # self.fc_img = nn.Linear(400, 256)
         self.fc_text = nn.Linear(768, 256)
-        self.SA = SelfAttention(16, 400+512+256, 400+512+256, hidden_dropout_prob=0.2)
+        self.SA = SelfAttention(16, 400 + 512 + 256, 400 + 512 + 256, hidden_dropout_prob=0.2)
         self.classify_head = DenseNet(layer_num=(6, 12, 24, 16), growth_rate=32, in_channels=1, classes=2)
 
     def forward(self, input_ids, attention_mask, token_type_ids, radio, img):
@@ -335,7 +338,7 @@ class Fusion_Main(nn.Module):
 
         text_feature = self.bert(input_ids=input_ids, attention_mask=attention_mask,
                                  token_type_ids=token_type_ids).pooler_output
-        
+
         # radiomic_feature = self.fc_Radio(radiomic_feature)
         # vision_feature = self.fc_img(vision_feature)
         text_feature = self.fc_text(text_feature)
@@ -494,7 +497,8 @@ class Triple_model_CrossAttentionFusion(nn.Module):
         global_feature = global_feature.permute(0, 2, 1)
         output = self.classify_head(global_feature)
         return output
-    
+
+
 # class Triple_model_Self_CrossAttentionFusion_3(nn.Module):
 #     def __init__(self):
 #         super(Triple_model_Self_CrossAttentionFusion_3, self).__init__()
@@ -539,6 +543,7 @@ class Triple_model_Self_CrossAttentionFusion(nn.Module):
     """
     simple radio encoder, pretrained_Vision_Encoder, biobert
     """
+
     def __init__(self):
         super(Triple_model_Self_CrossAttentionFusion, self).__init__()
         self.name = 'Triple_model_Self_CrossAttentionFusion'
@@ -569,8 +574,8 @@ class Triple_model_Self_CrossAttentionFusion(nn.Module):
         radio_feature = self.Radio_encoder(radio)[0]
         vision_feature = self.Resnet(img)
         cli_feature = self.bert(input_ids=input_ids, attention_mask=attention_mask,
-                                 token_type_ids=token_type_ids).pooler_output
-        
+                                token_type_ids=token_type_ids).pooler_output
+
         radio_feature = self.fc_Radio(radio_feature)
         vision_feature = self.fc_vis(vision_feature)
         cli_feature = self.fc_text(cli_feature)
@@ -583,11 +588,11 @@ class Triple_model_Self_CrossAttentionFusion(nn.Module):
         radio_feature = self.SA2(radio_feature)
         vision_feature = self.SA3(vision_feature)
 
-        cli_feature_tr = cli_feature.permute(0,2,1)
-        radio_feature_tr = radio_feature.permute(0,2,1)
-        vision_feature_tr = vision_feature.permute(0,2,1)
+        cli_feature_tr = cli_feature.permute(0, 2, 1)
+        radio_feature_tr = radio_feature.permute(0, 2, 1)
+        vision_feature_tr = vision_feature.permute(0, 2, 1)
 
-        _ , _, _, global_feature = self.fusion(cli_feature_tr, radio_feature_tr, vision_feature_tr)      #[B,N,1]
+        _, _, _, global_feature = self.fusion(cli_feature_tr, radio_feature_tr, vision_feature_tr)  # [B,N,1]
 
         global_feature = global_feature.permute(0, 2, 1)
         output = self.classify_head(global_feature)
@@ -599,6 +604,7 @@ class Triple_model_Cross_SelfAttentionFusion(nn.Module):
     """
     simple radio encoder, pretrained_Vision_Encoder, biobert
     """
+
     def __init__(self):
         super(Triple_model_Cross_SelfAttentionFusion, self).__init__()
         self.name = 'Triple_model_Cross_SelfAttentionFusion'
@@ -629,8 +635,8 @@ class Triple_model_Cross_SelfAttentionFusion(nn.Module):
         radio_feature = self.Radio_encoder(radio)[0]
         vision_feature = self.Resnet(img)
         cli_feature = self.bert(input_ids=input_ids, attention_mask=attention_mask,
-                                 token_type_ids=token_type_ids).pooler_output
-        
+                                token_type_ids=token_type_ids).pooler_output
+
         radio_feature = self.fc_Radio(radio_feature)
         vision_feature = self.fc_vis(vision_feature)
         cli_feature = self.fc_text(cli_feature)
@@ -639,24 +645,40 @@ class Triple_model_Cross_SelfAttentionFusion(nn.Module):
         radio_feature = torch.unsqueeze(radio_feature, dim=2)
         vision_feature = torch.unsqueeze(vision_feature, dim=2)
 
-        cli_feature, radio_feature, vision_feature, _ = self.fusion(cli_feature, radio_feature, vision_feature)      #[B,N,1]
+        cli_feature, radio_feature, vision_feature, _ = self.fusion(cli_feature, radio_feature,
+                                                                    vision_feature)  # [B,N,1]
 
-        cli_feature_tr = cli_feature.permute(0,2,1)
-        radio_feature_tr = radio_feature.permute(0,2,1)
-        vision_feature_tr = vision_feature.permute(0,2,1)
+        cli_feature_tr = cli_feature.permute(0, 2, 1)
+        radio_feature_tr = radio_feature.permute(0, 2, 1)
+        vision_feature_tr = vision_feature.permute(0, 2, 1)
 
         cli_feature = self.SA1(cli_feature_tr)
         radio_feature = self.SA2(radio_feature_tr)
         vision_feature = self.SA3(vision_feature_tr)
 
         global_feature = torch.cat([cli_feature, radio_feature, vision_feature], dim=2)
-        
+
         output = self.classify_head(global_feature)
 
         return radio_feature, vision_feature, cli_feature, output
-    
 
 
+class Vis_mamba_only(nn.Module):
+    def __init__(self):
+        super(Vis_mamba_only, self).__init__()
+        self.conv = nn.Sequential(
+            nn.Conv3d(in_channels=1, out_channels=4, kernel_size=5, padding=2, stride=4),
+            nn.BatchNorm3d(4),
+            nn.ReLU(inplace=True)
+        )
+        self.Mamba_layer = Omnidirectional_3D_Mamba(in_channels=4)
+        self.mlp = nn.Linear(384, 2)
 
-
-
+    def forward(self, x):
+        '''
+        :param x: torch.Size([B, 1, 64, 512, 512])
+        :return: torch.Size([B, 2])
+        '''
+        x = self.conv(x)
+        x = self.Mamba_layer(x)
+        return self.mlp(x.squeeze(dim=-2))
