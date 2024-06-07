@@ -81,7 +81,10 @@ def prepare_to_train(model_index, seed, device, fold):
     Hyper parameter settings
     '''
     optimizer = experiment_settings['Optimizer'](model.parameters(), experiment_settings['Lr'])
-    criterion = experiment_settings['Loss']()
+    if experiment_settings['w1'] is not None:
+        criterion = experiment_settings['Loss'](w1 = experiment_settings['w1'], w2 = experiment_settings['w2'])
+    else:
+        criterion = experiment_settings['Loss']()
 
     print("prepare completed! launch training!\U0001F680")
 

@@ -81,31 +81,41 @@ class Similarity_Distribution_Matching_Loss(nn.Module):
         return loss
 
 class joint_loss(nn.Module):
-    def __init__(self):
+    def __init__(self, w1=0.2, w2=0.01):
         super(joint_loss, self).__init__()
-        self.w = nn.Parameter(torch.ones(2))
+        self.w1 = w1
+        self.w2 = w2
         self.Cross_Entropy_Loss = nn.CrossEntropyLoss()
         self.Similarity_Distribution_Matching_Loss_1 = Similarity_Distribution_Matching_Loss(2)
         self.Similarity_Distribution_Matching_Loss_2 = Similarity_Distribution_Matching_Loss(2)
         self.Similarity_Distribution_Matching_Loss_3 = Similarity_Distribution_Matching_Loss(2)
 
     def forward(self, modality1_features, modality2_features,  modality3_features, labels, scores):
+        w1 = self.w1
+        w2 = self.w2
 
-        # w1 = torch.exp(self.w[0]) / torch.sum(torch.exp(self.w))
-        # w2 = torch.exp(self.w[1]) / torch.sum(torch.exp(self.w))
         modality1_features = modality1_features.squeeze()
         modality2_features = modality2_features.squeeze()
         modality3_features = modality3_features.squeeze()
 
         cross_entropy_loss = self.Cross_Entropy_Loss(scores, labels)
+
         if labels.dim() == 1:
             labels = labels.unsqueeze(1)
-        SDM_loss = self.Similarity_Distribution_Matching_Loss_1(modality1_features, modality2_features, labels)+\
-                    self.Similarity_Distribution_Matching_Loss_2(modality2_features, modality3_features, labels)+\
-                     self.Similarity_Distribution_Matching_Loss_3(modality1_features, modality3_features, labels)
+        rv_sdm = self.Similarity_Distribution_Matching_Loss_1(modality1_features, modality2_features, labels)
+        rc_sdm = self.Similarity_Distribution_Matching_Loss_2(modality2_features, modality3_features, labels)
+        vc_sdm = self.Similarity_Distribution_Matching_Loss_3(modality1_features, modality3_features, labels)
 
-        # return w1 * cross_entropy_loss + w2 * SDM_loss
-        return cross_entropy_loss + 0.01 * SDM_loss
+        multi_loss = (1 - w1) * rv_sdm + w1 * (rc_sdm + vc_sdm)/2
+        task_loss = cross_entropy_loss
+        return task_loss + w2 * multi_loss
+
+        # SDM_loss = self.Similarity_Distribution_Matching_Loss_1(modality1_features, modality2_features, labels)+\
+        #             self.Similarity_Distribution_Matching_Loss_2(modality2_features, modality3_features, labels)+\
+        #              self.Similarity_Distribution_Matching_Loss_3(modality1_features, modality3_features, labels)
+
+        
+        # return cross_entropy_loss + 0.01 * SDM_loss
 
 if __name__ == '__main__':
     # smaller to test on local
