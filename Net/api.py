@@ -3,7 +3,6 @@ import sys
 import torch
 import torch.utils.data
 from tqdm import tqdm
-from transformers import AutoTokenizer
 
 
 def run(observer, epochs, train_loader, test_loader, model, device, optimizer, criterion):
@@ -302,6 +301,90 @@ def run_main_1(observer, epochs, train_loader, test_loader, model, device, optim
                 observer.update(predictions, label)
 
         if observer.excute(epoch):       
+            print("Early stopping")
+            break
+    observer.finish()
+
+
+def run_main_1(observer, epochs, train_loader, test_loader, model, device, optimizer, criterion):
+    model = model.to(device)
+    print("start training")
+    for epoch in range(epochs):
+        print(f"Epoch: {epoch + 1}/{epochs}")
+        observer.reset()
+        model.train()
+        train_bar = tqdm(train_loader, leave=True, file=sys.stdout)
+
+        for i, (token, segment, mask, radio, img, label) in enumerate(train_bar):
+            optimizer.zero_grad()
+            token, segment, mask = token.to(device), segment.to(device), mask.to(device)
+            img = img.to(device)
+            radio = radio.to(device)
+            label = label.to(device)
+            radio_feature, vision_feature, cli_feature, outputs = model(input_ids=token, attention_mask=mask, token_type_ids=segment, radio=radio,
+                                      img=img)
+            loss = criterion(radio_feature, vision_feature, cli_feature, label, outputs)
+            loss.backward()
+            optimizer.step()
+
+        with torch.no_grad():
+            model.eval()
+            test_bar = tqdm(test_loader, leave=True, file=sys.stdout)
+
+            for i, (token, segment, mask, radio, img, label) in enumerate(test_bar):
+                token, segment, mask = token.to(device), segment.to(device), mask.to(device)
+                img = img.to(device)
+                radio = radio.to(device)
+                label = label.to(device)
+                _, _, _, outputs = model(input_ids=token, attention_mask=mask, token_type_ids=segment, radio=radio,
+                                      img=img)
+                _, predictions = torch.max(outputs, dim=1)
+                observer.update(predictions, label)
+
+        if observer.excute(epoch):
+            print("Early stopping")
+            break
+    observer.finish()
+
+
+def run_main_text_img(observer, epochs, train_loader, test_loader, model, device, optimizer, criterion):
+    model = model.to(device)
+    print("start training")
+    for epoch in range(epochs):
+        print(f"Epoch: {epoch + 1}/{epochs}")
+        observer.reset()
+        model.train()
+        train_bar = tqdm(train_loader, leave=True, file=sys.stdout)
+        running_loss = test_loss = 0.0
+        for i, (token, segment, mask, img, label) in enumerate(train_bar):
+            optimizer.zero_grad()
+            token, segment, mask = token.to(device), segment.to(device), mask.to(device)
+            img = img.to(device)
+            label = label.to(device)
+            outputs = model(input_ids=token, attention_mask=mask, token_type_ids=segment, img=img)
+            loss = criterion(outputs, label)
+            loss.backward()
+            optimizer.step()
+            running_loss += loss.item() * img.size(0)
+        train_loss = running_loss / len(train_loader.dataset)
+        observer.log(f"Train Loss: {train_loss:.4f}\n")
+        with torch.no_grad():
+            model.eval()
+            test_bar = tqdm(test_loader, leave=True, file=sys.stdout)
+
+            for i, (token, segment, mask, img, label) in enumerate(test_bar):
+                token, segment, mask = token.to(device), segment.to(device), mask.to(device)
+                img = img.to(device)
+                label = label.to(device)
+                outputs = model(input_ids=token, attention_mask=mask, token_type_ids=segment, img=img)
+                _, predictions = torch.max(outputs, dim=1)
+                loss = criterion(outputs, label)
+                observer.update(predictions, label)
+                test_loss += loss.item() * img.size(0)
+            test_loss = test_loss / len(test_loader.dataset)
+            observer.log(f"Test Loss: {test_loss:.4f}\n")
+        observer.record_loss(epoch, train_loss, test_loss)
+        if observer.excute(epoch):
             print("Early stopping")
             break
     observer.finish()

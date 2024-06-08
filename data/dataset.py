@@ -170,7 +170,7 @@ class Liver_normalization_dataset(torch.utils.data.Dataset):
             temp_dict.update({'label': label})
             if self.mode == 'bert':
                 temp_dict.update({'features': string})
-            elif self.mode == 'fusion':
+            elif self.mode == 'fusion' or 'two_model':
                 temp_dict.update({'features': _data, 'clinical_text': clinical_text})
             else:
                 temp_dict.update({'features': _data})
@@ -193,7 +193,7 @@ class Liver_normalization_dataset(torch.utils.data.Dataset):
         vision = torch.Tensor(array)
         vision_tensor = torch.unsqueeze(vision, 0)
 
-        if self.mode == 'fusion':
+        if self.mode == 'fusion' or 'two_model':
             text_feature = self.data_dict[uid]['clinical_text']
         
         # usage of text data
@@ -221,6 +221,10 @@ class Liver_normalization_dataset(torch.utils.data.Dataset):
             text_tensor = self.text2id(text_feature)
             return text_tensor['input_ids'].squeeze(0), text_tensor['token_type_ids'].squeeze(0), text_tensor[
                 'attention_mask'].squeeze(0), radio_tensor, vision_tensor, label_tensor
+        elif self.mode == 'two_model':
+            text_tensor = self.text2id(text_feature)
+            return text_tensor['input_ids'].squeeze(0), text_tensor['token_type_ids'].squeeze(0), text_tensor[
+                'attention_mask'].squeeze(0), vision_tensor, label_tensor
         else:
             return None
         

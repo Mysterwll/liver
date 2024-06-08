@@ -1,10 +1,9 @@
 import torch
 from transformers import AutoModel
 
-from Net.header import DenseNet
-from Net.vision_encoder import _3D_ResNet_50, get_pretrained_Vision_Encoder, pretrained_Resnet, Omnidirectional_3D_Mamba
+from Net.basicArchs import *
+# from Net.mamba_modules import *
 from Net.fusions import *
-from Net.radiomic_encoder import *
 import torch.nn as nn
 
 
@@ -15,7 +14,7 @@ class Vis_only(nn.Module):
         if use_pretrained:
             self.Resnet = get_pretrained_Vision_Encoder()
         else:
-            self.Resnet = _3D_ResNet_50()
+            self.Resnet = M3D_ResNet_50()
         self.output = nn.Linear(400, 2)
 
     def forward(self, x):
@@ -32,7 +31,7 @@ class Vis_only_header(nn.Module):
     def __init__(self):
         super(Vis_only_header, self).__init__()
         self.name = 'Vis_only_header'
-        self.Resnet = _3D_ResNet_50()
+        self.Resnet = M3D_ResNet_50()
         self.classify_head = DenseNet(layer_num=(6, 12, 24, 16), growth_rate=32, in_channels=1, classes=2)
 
     def forward(self, x):
@@ -70,7 +69,7 @@ class Fusion_Concat(nn.Module):
         super(Fusion_Concat, self).__init__()
         self.name = 'Fusion_base'
         self.bert = AutoModel.from_pretrained("./models/Bio_ClinicalBERT")
-        self.Resnet = _3D_ResNet_50()
+        self.Resnet = M3D_ResNet_50()
         self.classify_head = DenseNet(layer_num=(6, 12, 24, 16), growth_rate=32, in_channels=1, classes=2)
 
     def forward(self, input_ids, attention_mask, token_type_ids, img):
@@ -94,7 +93,7 @@ class Fusion_SelfAttention(nn.Module):
         super(Fusion_SelfAttention, self).__init__()
         self.name = 'Fusion_SelfAttention'
         self.bert = AutoModel.from_pretrained("./models/Bio_ClinicalBERT")
-        self.Resnet = _3D_ResNet_50()
+        self.Resnet = M3D_ResNet_50()
         self.SA = SelfAttention(16, 1280, 1280, hidden_dropout_prob=0.2)
         self.classify_head = DenseNet(layer_num=(6, 12, 24, 16), growth_rate=32, in_channels=1, classes=2)
         self.fc_text = nn.Linear(768, 640)
@@ -124,7 +123,7 @@ class Contrastive_Learning(nn.Module):
         super(Contrastive_Learning, self).__init__()
         self.name = 'Contrastive_Learning'
         self.Radio_encoder = Radiomic_encoder(num_features=1783)
-        # self.Resnet = _3D_ResNet_50()
+        # self.Resnet = M3D_ResNet_50()
         self.Resnet = get_pretrained_Vision_Encoder()
         self.projection_head_radio = nn.Sequential(
             nn.Linear(512, 128, bias=False),
@@ -162,7 +161,7 @@ This function has been deprecated, please refer to train.py for more information
 #         super(Contrastive_Learning, self).__init__()
 #         self.name = 'Contrastive_Learning'
 #         self.Radio_encoder = Radiomic_encoder(num_features=1783)
-#         # self.Resnet = _3D_ResNet_50()
+#         # self.Resnet = M3D_ResNet_50()
 #         self.Resnet = get_pretrained_Vision_Encoder()
 #         self.projection_head_radio = nn.Sequential(
 #                             nn.Linear(512, 128, bias = False),
@@ -682,3 +681,44 @@ class Vis_mamba_only(nn.Module):
         x = self.conv(x)
         x = self.Mamba_layer(x)
         return self.mlp(x.squeeze(dim=-2))
+
+
+class Two_model_CrossAttentionFusion(nn.Module):
+    """
+    pretrained_Vision_Encoder, biobert
+    """
+
+    def __init__(self):
+        super(Two_model_CrossAttentionFusion, self).__init__()
+        self.name = 'Two_model_CrossAttentionFusion'
+        self.Resnet = get_pretrained_Vision_Encoder()
+        self.bert = AutoModel.from_pretrained("./models/Bio_ClinicalBERT")
+
+        self.fc_vis = nn.Linear(400, 256)
+        self.fc_text = nn.Linear(768, 256)
+
+        self.fusion = CrossAttention(input_dim=1)
+
+        self.classify_head = DenseNet(layer_num=(6, 12, 24, 16), growth_rate=32, in_channels=1, classes=2)
+
+    def forward(self, input_ids, attention_mask, token_type_ids, img):
+        '''
+        :param img: torch.Size([B, 1, 64, 512, 512])
+        :return: torch.Size([B, 2])
+        '''
+        vision_feature = self.Resnet(img)
+        cli_feature = self.bert(input_ids=input_ids, attention_mask=attention_mask,
+                                token_type_ids=token_type_ids).pooler_output
+
+        vision_feature = self.fc_vis(vision_feature)
+        cli_feature = self.fc_text(cli_feature)
+
+        cli_feature = torch.unsqueeze(cli_feature, dim=-1)
+        vision_feature = torch.unsqueeze(vision_feature, dim=-1)
+
+        global_feature = self.fusion(cli_feature, vision_feature)  # [B,N,1]
+
+        global_feature = global_feature.permute(0, 2, 1)
+        output = self.classify_head(global_feature)
+
+        return output

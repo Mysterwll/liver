@@ -81,7 +81,8 @@ def prepare_to_train(model_index, seed, device, fold):
     Hyper parameter settings
     '''
     optimizer = experiment_settings['Optimizer'](model.parameters(), experiment_settings['Lr'])
-    if experiment_settings['w1'] is not None:
+    # if experiment_settings['w1'] is not None:
+    if 'w1' in experiment_settings:
         criterion = experiment_settings['Loss'](w1 = experiment_settings['w1'], w2 = experiment_settings['w2'])
     else:
         criterion = experiment_settings['Loss']()
@@ -96,7 +97,7 @@ def prepare_to_train(model_index, seed, device, fold):
 if __name__ == "__main__":
     # Adding necessary input arguments
     parser = argparse.ArgumentParser(description="add arguments to test")
-    parser.add_argument("--model", default='climamba', type=str, help="model")
+    parser.add_argument("--model", default='two_model', type=str, help="model")
     parser.add_argument("--seed", default=42, type=int, help="seed given by LinkStart.py on cross Val")
     parser.add_argument("--device", default='cuda', type=str)
     parser.add_argument("--fold", default=0, type=int, help="0~4")

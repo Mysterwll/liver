@@ -3,8 +3,6 @@ from torch.optim import Adam, SGD
 from Net.loss_functions import *
 from Net.api import *
 from Net.networks import *
-from Net.radiomic_encoder import *
-from Net.vision_encoder import *
 from Net.cp_networks import *
 
 models = {
@@ -178,6 +176,17 @@ models = {
         'Optimizer': Adam,
         'Loss': CrossEntropyLoss,
         'Run': run_main
+    },
+    'two_model': {
+        'Name': 'two_model',
+        'Data': './data/summery_new.txt',
+        'Batch': 2,
+        'Lr': 0.0001,
+        'Epoch': 300,
+        'Dataset_mode': 'two_model',
+        'Model': Two_model_CrossAttentionFusion,
+        'Optimizer': Adam,
+        'Loss': CrossEntropyLoss,
+        'Run': run_main_text_img
     }
-
 }

@@ -2,6 +2,44 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+"""
+Radio_encoders
+"""
+
+
+class Radiomic_encoder(nn.Module):
+    def __init__(self, num_features):
+        """
+            Radiomic_encoder to extract valid radiomic feature
+        """
+        super().__init__()
+        self.fc1 = nn.Linear(num_features, 1024, bias=False)
+        self.fc2 = nn.Linear(1024, 512, bias=False)
+        self.bn1 = nn.BatchNorm1d(1024)
+        # self.bn2 = nn.BatchNorm1d(512)
+        self.relu = nn.ReLU(True)
+        self.projection_head = nn.Sequential(
+            nn.Linear(512, 128, bias=False),
+            nn.BatchNorm1d(128),
+            nn.ReLU(inplace=True),
+            nn.Linear(128, 128, bias=False)
+        )
+
+    def forward(self, x):
+        x = self.fc1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.fc2(x)
+
+        feat = x
+        pj_feat = self.projection_head(feat)
+        return feat, pj_feat
+
+
+"""
+Vision encoders
+"""
+
 
 class Gated_vision_mamba_encoder(nn.Module):
     def __init__(self, in_channels: int = 1):
@@ -17,7 +55,7 @@ class Gated_vision_mamba_encoder(nn.Module):
         pass
 
 
-def _3D_ResNet_50(**kwargs):
+def M3D_ResNet_50(**kwargs):
     """"
         You can get a raw 3D ResNet-50
     """
@@ -272,66 +310,98 @@ class ResNet(nn.Module):
         return x
 
 
-from mamba_ssm import Mamba
-
-
-class Omnidirectional_3D_Mamba(nn.Module):
-    def __init__(self, in_channels, d_state=16, d_conv=4, expand=2):
-        super(Omnidirectional_3D_Mamba, self).__init__()
-        self.mamba = Mamba(
-            d_model=in_channels,  # Model dimension d_model
-            d_state=d_state,  # SSM state expansion factor
-            d_conv=d_conv,  # Local convolution width
-            expand=expand  # Block expansion factor
+"""
+header
+"""
+class DenseLayer(torch.nn.Module):
+    def __init__(self, in_channels, middle_channels=128, out_channels=32):
+        super(DenseLayer, self).__init__()
+        self.layer = torch.nn.Sequential(
+            torch.nn.BatchNorm1d(in_channels),
+            torch.nn.ReLU(inplace=True),
+            torch.nn.Conv1d(in_channels, middle_channels, 1),
+            torch.nn.BatchNorm1d(middle_channels),
+            torch.nn.ReLU(inplace=True),
+            torch.nn.Conv1d(middle_channels, out_channels, 3, padding=1)
         )
-        self.projection_dim = nn.Sequential(
-            nn.ReLU(),
-            nn.BatchNorm1d(in_channels),
-            nn.Linear(in_channels, 1)
-        )
-        self.pool = nn.AdaptiveMaxPool1d(128)
 
     def forward(self, x):
-        B, C, D, H, W = x.shape
-        elements = D * H * W
-
-        x_flat_D = x.permute(0, 1, 2, 3, 4).reshape(B, C, elements).transpose(-1, -2)
-        x_flat_H = x.permute(0, 1, 3, 4, 2).reshape(B, C, elements).transpose(-1, -2)
-        x_flat_W = x.permute(0, 1, 4, 2, 3).reshape(B, C, elements).transpose(-1, -2)
-
-        feature_D = self.mamba(x_flat_D)
-        feature_H = self.mamba(x_flat_H)
-        feature_W = self.mamba(x_flat_W)
-
-        feature_D = feature_D.view(-1, C)
-        feature_H = feature_H.view(-1, C)
-        feature_W = feature_W.view(-1, C)
-
-        feature_D = self.projection_dim(feature_D)
-        feature_H = self.projection_dim(feature_H)
-        feature_W = self.projection_dim(feature_W)
-
-        feature_D = feature_D.view(B, elements, 1).transpose(-1, -2)
-        feature_H = feature_H.view(B, elements, 1).transpose(-1, -2)
-        feature_W = feature_W.view(B, elements, 1).transpose(-1, -2)
-
-        feature_D = self.pool(feature_D)
-        feature_H = self.pool(feature_H)
-        feature_W = self.pool(feature_W)
-
-        feature = torch.cat([feature_D, feature_H, feature_W], dim=-1)
-
-        return feature
+        return torch.cat([x, self.layer(x)], dim=1)
 
 
-if __name__ == "__main__":
-    device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
-    input = torch.randn((2, 1, 32, 256, 256)).to(device)
-    model = Omnidirectional_3D_Mamba(in_channels=1).to(device)
-    num_params = 0
-    for p in model.parameters():
-        if p.requires_grad:
-            num_params += p.numel()
-    print(f"num: {num_params}")
-    output = model(input)
-    print(output.shape)
+class DenseBlock(torch.nn.Sequential):
+    def __init__(self, layer_num, growth_rate, in_channels, middele_channels=128):
+        super(DenseBlock, self).__init__()
+        for i in range(layer_num):
+            layer = DenseLayer(in_channels + i * growth_rate, middele_channels, growth_rate)
+            self.add_module('denselayer%d' % (i), layer)
+
+
+class Transition(torch.nn.Sequential):
+    def __init__(self, channels):
+        super(Transition, self).__init__()
+        self.add_module('norm', torch.nn.BatchNorm1d(channels))
+        self.add_module('relu', torch.nn.ReLU(inplace=True))
+        self.add_module('conv', torch.nn.Conv1d(channels, channels // 2, 3, padding=1))
+        self.add_module('Avgpool', torch.nn.AvgPool1d(2))
+
+
+class DenseNet(torch.nn.Module):
+    def __init__(self, layer_num=(6, 12, 24, 16), growth_rate=32, init_features=64, in_channels=1, middele_channels=128,
+                 classes=2):
+        """
+        1D-DenseNet Module, use to conv global feature and generate final target
+        """
+        super(DenseNet, self).__init__()
+        self.feature_channel_num = init_features
+        self.conv = torch.nn.Conv1d(in_channels, self.feature_channel_num, 7, 2, 3)
+        self.norm = torch.nn.BatchNorm1d(self.feature_channel_num)
+        self.relu = torch.nn.ReLU()
+        self.maxpool = torch.nn.MaxPool1d(3, 2, 1)
+
+        self.DenseBlock1 = DenseBlock(layer_num[0], growth_rate, self.feature_channel_num, middele_channels)
+        self.feature_channel_num = self.feature_channel_num + layer_num[0] * growth_rate
+        self.Transition1 = Transition(self.feature_channel_num)
+
+        self.DenseBlock2 = DenseBlock(layer_num[1], growth_rate, self.feature_channel_num // 2, middele_channels)
+        self.feature_channel_num = self.feature_channel_num // 2 + layer_num[1] * growth_rate
+        self.Transition2 = Transition(self.feature_channel_num)
+
+        self.DenseBlock3 = DenseBlock(layer_num[2], growth_rate, self.feature_channel_num // 2, middele_channels)
+        self.feature_channel_num = self.feature_channel_num // 2 + layer_num[2] * growth_rate
+        self.Transition3 = Transition(self.feature_channel_num)
+
+        self.DenseBlock4 = DenseBlock(layer_num[3], growth_rate, self.feature_channel_num // 2, middele_channels)
+        self.feature_channel_num = self.feature_channel_num // 2 + layer_num[3] * growth_rate
+
+        self.avgpool = torch.nn.AdaptiveAvgPool1d(1)
+
+        self.classifer = torch.nn.Sequential(
+            torch.nn.Linear(self.feature_channel_num, self.feature_channel_num // 2),
+            torch.nn.ReLU(),
+            torch.nn.Dropout(0.5),
+            torch.nn.Linear(self.feature_channel_num // 2, classes),
+            torch.nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        x = self.conv(x)
+        x = self.norm(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+
+        x = self.DenseBlock1(x)
+        x = self.Transition1(x)
+
+        x = self.DenseBlock2(x)
+        x = self.Transition2(x)
+
+        x = self.DenseBlock3(x)
+        x = self.Transition3(x)
+
+        x = self.DenseBlock4(x)
+        x = self.avgpool(x)
+        x = x.view(-1, self.feature_channel_num)
+        x = self.classifer(x)
+
+        return x
