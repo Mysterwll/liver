@@ -188,5 +188,29 @@ models = {
         'Optimizer': Adam,
         'Loss': CrossEntropyLoss,
         'Run': run_main_text_img
-    }
+    },
+    'two_text_modality': {
+        'Name': 'two_text_modality',
+        'Data': './data/summery_new.txt',
+        'Batch': 2,
+        'Lr': 0.0001,
+        'Epoch': 300,
+        'Dataset_mode': 'two_textmodel',
+        'Model': Two_textmodel_Fusion,
+        'Optimizer': Adam,
+        'Loss': CrossEntropyLoss,
+        'Run': run_main_text_img
+    },
+    'OmniDirectional3DMamba': {
+        'Name': 'Test for OmniDirectional3DMamba',
+        'Data': './data/summery_new.txt',
+        'Batch': 2,
+        'Lr': 0.0001,
+        'Epoch': 300,
+        'Dataset_mode': 'img',
+        'Model': Vis_mamba_only,
+        'Optimizer': Adam,
+        'Loss': CrossEntropyLoss,
+        'Run': run_single
+    },
 }

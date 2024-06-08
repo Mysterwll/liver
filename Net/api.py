@@ -554,5 +554,7 @@ def run_single(observer, epochs, train_loader, test_loader, model, device, optim
             observer.log(f"Test Loss: {test_loss:.4f}\n")
 
         observer.record_loss(epoch, train_loss, test_loss)
-        observer.excute(epoch)
+        if observer.excute(epoch):
+            print("Early stopping")
+            break
     observer.finish()

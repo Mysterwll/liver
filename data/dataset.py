@@ -225,6 +225,10 @@ class Liver_normalization_dataset(torch.utils.data.Dataset):
             text_tensor = self.text2id(text_feature)
             return text_tensor['input_ids'].squeeze(0), text_tensor['token_type_ids'].squeeze(0), text_tensor[
                 'attention_mask'].squeeze(0), vision_tensor, label_tensor
+        elif self.mode == 'two_textmodel':
+            text_tensor = self.text2id(text_feature)
+            return text_tensor['input_ids'].squeeze(0), text_tensor['token_type_ids'].squeeze(0), text_tensor[
+                'attention_mask'].squeeze(0), radio_tensor, label_tensor
         else:
             return None
         

@@ -11,7 +11,7 @@ from data.dataset import Liver_dataset, Liver_normalization_dataset
 from utils.observer import Runtime_Observer
 
 
-def prepare_to_train(model_index, seed, device, fold):
+def prepare_to_train(model_index, seed, device, fold, data_parallel):
     global experiment_settings
     assert torch.cuda.is_available(), "Please ensure codes are executed on cuda."
     try:
@@ -65,7 +65,7 @@ def prepare_to_train(model_index, seed, device, fold):
     _model = experiment_settings['Model']
     model = _model()
     # 如果有多个GPU可用，使用DataParallel来并行化模型
-    if torch.cuda.device_count() > 1:
+    if torch.cuda.device_count() > 1 and data_parallel == 1:
         observer.log("Using" + str(torch.cuda.device_count()) + "GPUs for training.\n")
         model = torch.nn.DataParallel(model)
     observer.log(f'Use model : {str(experiment_settings)}\n')
@@ -97,11 +97,12 @@ def prepare_to_train(model_index, seed, device, fold):
 if __name__ == "__main__":
     # Adding necessary input arguments
     parser = argparse.ArgumentParser(description="add arguments to test")
-    parser.add_argument("--model", default='two_model', type=str, help="model")
+    parser.add_argument("--model", default='OmniDirectional3DMamba', type=str, help="model")
     parser.add_argument("--seed", default=42, type=int, help="seed given by LinkStart.py on cross Val")
-    parser.add_argument("--device", default='cuda', type=str)
+    parser.add_argument("--device", default='cuda:1', type=str)
     parser.add_argument("--fold", default=0, type=int, help="0~4")
+    parser.add_argument("--data_parallel", default=0, type=int, help="test on server")
     args = parser.parse_args()
 
     print(args)
-    prepare_to_train(model_index=args.model, seed=args.seed, device=args.device, fold=args.fold)
+    prepare_to_train(model_index=args.model, seed=args.seed, device=args.device, fold=args.fold, data_parallel=args.data_parallel)

@@ -3,21 +3,15 @@ from mamba_ssm import Mamba
 from torch import nn
 
 
-
 class Omnidirectional_3D_Mamba(nn.Module):
     def __init__(self, in_channels, d_state=16, d_conv=4, expand=2):
         super(Omnidirectional_3D_Mamba, self).__init__()
-        self.mamba = Mamba(
-            d_model=in_channels,  # Model dimension d_model
-            d_state=d_state,  # SSM state expansion factor
-            d_conv=d_conv,  # Local convolution width
-            expand=expand  # Block expansion factor
-        )
-        self.projection_dim = nn.Sequential(
-            nn.ReLU(),
+        self.mamba = nn.ModuleList([Mamba(in_channels, d_state, d_conv, expand) for _ in range(3)])
+        self.projection_dim = nn.ModuleList([nn.Sequential(
+            nn.ReLU(inplace=True),
             nn.BatchNorm1d(in_channels),
             nn.Linear(in_channels, 1)
-        )
+        ) for _ in range(3)])
         self.pool = nn.AdaptiveMaxPool1d(128)
 
     def forward(self, x):
@@ -28,17 +22,17 @@ class Omnidirectional_3D_Mamba(nn.Module):
         x_flat_H = x.permute(0, 1, 3, 4, 2).reshape(B, C, elements).transpose(-1, -2)
         x_flat_W = x.permute(0, 1, 4, 2, 3).reshape(B, C, elements).transpose(-1, -2)
 
-        feature_D = self.mamba(x_flat_D)
-        feature_H = self.mamba(x_flat_H)
-        feature_W = self.mamba(x_flat_W)
+        feature_D = self.mamba[0](x_flat_D)
+        feature_H = self.mamba[1](x_flat_H)
+        feature_W = self.mamba[2](x_flat_W)
 
         feature_D = feature_D.view(-1, C)
         feature_H = feature_H.view(-1, C)
         feature_W = feature_W.view(-1, C)
 
-        feature_D = self.projection_dim(feature_D)
-        feature_H = self.projection_dim(feature_H)
-        feature_W = self.projection_dim(feature_W)
+        feature_D = self.projection_dim[0](feature_D)
+        feature_H = self.projection_dim[1](feature_H)
+        feature_W = self.projection_dim[2](feature_W)
 
         feature_D = feature_D.view(B, elements, 1).transpose(-1, -2)
         feature_H = feature_H.view(B, elements, 1).transpose(-1, -2)
@@ -91,7 +85,6 @@ class Radiomic_mamba_encoder(nn.Module):
         """
         super().__init__()
         self.projection1 = nn.Sequential(
-            nn.ReLU(),
             nn.Linear(num_features, 2048),
             nn.LayerNorm(2048)
         )

@@ -2,7 +2,7 @@ import torch
 from transformers import AutoModel
 
 from Net.basicArchs import *
-# from Net.mamba_modules import *
+from Net.mamba_modules import *
 from Net.fusions import *
 import torch.nn as nn
 
@@ -666,12 +666,19 @@ class Vis_mamba_only(nn.Module):
     def __init__(self):
         super(Vis_mamba_only, self).__init__()
         self.conv = nn.Sequential(
-            nn.Conv3d(in_channels=1, out_channels=4, kernel_size=5, padding=2, stride=4),
+            nn.Conv3d(in_channels=1, out_channels=4, kernel_size=3, padding=1, stride=2),
             nn.BatchNorm3d(4),
             nn.ReLU(inplace=True)
         )
-        self.Mamba_layer = Omnidirectional_3D_Mamba(in_channels=4)
-        self.mlp = nn.Linear(384, 2)
+        self.conv2 = nn.Sequential(
+            nn.Conv3d(in_channels=4, out_channels=8, kernel_size=3, padding=1, stride=2),
+            nn.BatchNorm3d(8),
+            nn.ReLU(inplace=True)
+        )
+        self.mamba_layer = Omnidirectional_3D_Mamba(in_channels=4)
+        self.mamba_layer2 = Omnidirectional_3D_Mamba(in_channels=8)
+        # self.classify_head = DenseNet(layer_num=(1, 3, 6, 4), growth_rate=4, in_channels=1, classes=2)
+        self.mlp = nn.Linear(128 * 6, 2)
 
     def forward(self, x):
         '''
@@ -679,8 +686,11 @@ class Vis_mamba_only(nn.Module):
         :return: torch.Size([B, 2])
         '''
         x = self.conv(x)
-        x = self.Mamba_layer(x)
-        return self.mlp(x.squeeze(dim=-2))
+        feature_level_1 = self.mamba_layer(x)
+        x = self.conv2(x)
+        feature_level_2 = self.mamba_layer2(x)
+        global_feature = torch.cat([feature_level_1, feature_level_2], dim=-1)
+        return self.mlp(torch.squeeze(global_feature, dim=-2))
 
 
 class Two_model_CrossAttentionFusion(nn.Module):
@@ -717,6 +727,45 @@ class Two_model_CrossAttentionFusion(nn.Module):
         vision_feature = torch.unsqueeze(vision_feature, dim=-1)
 
         global_feature = self.fusion(cli_feature, vision_feature)  # [B,N,1]
+
+        global_feature = global_feature.permute(0, 2, 1)
+        output = self.classify_head(global_feature)
+
+        return output
+
+
+class Two_textmodel_Fusion(nn.Module):
+    """
+    all biobert with cross_attention
+    """
+
+    def __init__(self):
+        super(Two_textmodel_Fusion, self).__init__()
+        self.name = 'Two_textmodel_Fusion'
+        self.bert = AutoModel.from_pretrained("./models/Bio_ClinicalBERT")
+        self.radio = Radiomic_mamba_encoder()
+
+        self.fc_cli = nn.Linear(768, 256)
+
+        self.fusion = CrossAttention(input_dim=1)
+
+        self.classify_head = DenseNet(layer_num=(6, 12, 24, 16), growth_rate=32, in_channels=1, classes=2)
+
+    def forward(self, input_ids, attention_mask, token_type_ids, img):
+        '''
+        :param img: torch.Size([B, 1, 64, 512, 512])
+        :return: torch.Size([B, 2])
+        '''
+        radio_feature = self.radio(img)
+        cli_feature = self.bert(input_ids=input_ids, attention_mask=attention_mask,
+                                token_type_ids=token_type_ids).pooler_output
+
+        cli_feature = self.fc_cli(cli_feature)
+
+        cli_feature = torch.unsqueeze(cli_feature, dim=-1)
+        radio_feature = torch.unsqueeze(radio_feature, dim=-1)
+
+        global_feature = self.fusion(cli_feature, radio_feature)  # [B,N,1]
 
         global_feature = global_feature.permute(0, 2, 1)
         output = self.classify_head(global_feature)
