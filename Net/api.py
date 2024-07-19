@@ -547,6 +547,53 @@ def run_single(observer, epochs, train_loader, test_loader, model, device, optim
                 info1, label = info1.to(device), label.to(device)
                 outputs = model(info1)
                 loss = criterion(outputs, label)
+                probabilities = torch.softmax(outputs, dim=1)
+                _, predictions = torch.max(probabilities, dim=1)
+                confidence_scores = probabilities[range(len(predictions)), 1]
+                observer.update(predictions, label, confidence_scores)
+                test_loss += loss.item() * info1.size(0)
+            test_loss = test_loss / len(train_loader.dataset)
+            observer.log(f"Test Loss: {test_loss:.4f}\n")
+
+        observer.record_loss(epoch, train_loss, test_loss)
+        if observer.excute(epoch):
+            print("Early stopping")
+            break
+    observer.finish()
+
+
+def run_double(observer, epochs, train_loader, test_loader, model, device, optimizer, criterion):
+    model = model.to(device)
+    observer.log("start training\n")
+    for epoch in range(epochs):
+        print(f"Epoch: {epoch + 1}/{epochs}")
+
+        observer.reset()
+        model.train()
+        train_bar = tqdm(train_loader, leave=True, file=sys.stdout)
+        running_loss = test_loss = 0.0
+        for i, (info1, info2, label) in enumerate(train_bar):
+            optimizer.zero_grad()
+            info1, info2, label = info1.to(device), info2.to(device), label.to(device)
+            outputs = model(info1, info2)
+            loss = criterion(outputs, label)
+            loss.backward()
+            # for name, param in model.named_parameters():
+            #     if param.grad is None:
+            #         print(name, param.grad_fn)
+            optimizer.step()
+            running_loss += loss.item() * info1.size(0)
+        train_loss = running_loss / len(train_loader.dataset)
+        observer.log(f"Loss: {train_loss:.4f}\n")
+
+        with torch.no_grad():
+            model.eval()
+            test_bar = tqdm(test_loader, leave=True, file=sys.stdout)
+
+            for i, (info1, info2, label) in enumerate(test_bar):
+                info1, info2, label = info1.to(device), info2.to(device), label.to(device)
+                outputs = model(info1, info2)
+                loss = criterion(outputs, label)
                 _, predictions = torch.max(outputs, dim=1)
                 observer.update(predictions, label)
                 test_loss += loss.item() * info1.size(0)

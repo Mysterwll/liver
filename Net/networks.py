@@ -17,6 +17,7 @@ class Vis_only(nn.Module):
             self.Resnet = M3D_ResNet_50()
         self.output = nn.Linear(400, 2)
 
+
     def forward(self, x):
         '''
         :param x: torch.Size([B, 1, 64, 512, 512])
@@ -671,14 +672,25 @@ class Vis_mamba_only(nn.Module):
             nn.ReLU(inplace=True)
         )
         self.conv2 = nn.Sequential(
-            nn.Conv3d(in_channels=4, out_channels=8, kernel_size=3, padding=1, stride=2),
+            nn.Conv3d(in_channels=8, out_channels=8, kernel_size=3, padding=1, stride=2),
             nn.BatchNorm3d(8),
+            nn.ReLU(inplace=True)
+        )
+        self.conv3 = nn.Sequential(
+            nn.Conv3d(in_channels=8, out_channels=16, kernel_size=3, padding=1, stride=2),
+            nn.BatchNorm3d(16),
             nn.ReLU(inplace=True)
         )
         self.mamba_layer = Omnidirectional_3D_Mamba(in_channels=4)
         self.mamba_layer2 = Omnidirectional_3D_Mamba(in_channels=8)
+        self.mamba_layer3 = Omnidirectional_3D_Mamba(in_channels=16)
         # self.classify_head = DenseNet(layer_num=(1, 3, 6, 4), growth_rate=4, in_channels=1, classes=2)
-        self.mlp = nn.Linear(128 * 6, 2)
+        self.projection = nn.Sequential(
+            nn.BatchNorm1d(256 * 9),
+            nn.ReLU(inplace=True),
+            nn.Linear(256 * 9, 256)
+        )
+        self.mlp = nn.Linear(256, 2)
 
     def forward(self, x):
         '''
@@ -689,8 +701,14 @@ class Vis_mamba_only(nn.Module):
         feature_level_1 = self.mamba_layer(x)
         x = self.conv2(x)
         feature_level_2 = self.mamba_layer2(x)
-        global_feature = torch.cat([feature_level_1, feature_level_2], dim=-1)
-        return self.mlp(torch.squeeze(global_feature, dim=-2))
+        x = self.conv3(x)
+        feature_level_3 = self.mamba_layer3(x)
+        # print(
+        #     f"Memory allocated after tensor creation1: {torch.cuda.memory_allocated(device='cuda:1') / (1024 ** 2):.2f} MB")
+        global_feature = torch.cat([feature_level_1, feature_level_2, feature_level_3], dim=-1)
+        global_feature = torch.squeeze(global_feature, dim=-2)
+        global_feature = self.projection(global_feature)
+        return self.mlp(global_feature)
 
 
 class Two_model_CrossAttentionFusion(nn.Module):
@@ -766,6 +784,43 @@ class Two_textmodel_Fusion(nn.Module):
         radio_feature = torch.unsqueeze(radio_feature, dim=-1)
 
         global_feature = self.fusion(cli_feature, radio_feature)  # [B,N,1]
+
+        global_feature = global_feature.permute(0, 2, 1)
+        output = self.classify_head(global_feature)
+
+        return output
+
+
+class Two_model_CrossAttentionFusion_radio(nn.Module):
+    """
+    pretrained_Vision_Encoder, biobert
+    """
+
+    def __init__(self):
+        super(Two_model_CrossAttentionFusion_radio, self).__init__()
+        self.name = 'Two_model_CrossAttentionFusion_radio'
+        self.Resnet = get_pretrained_Vision_Encoder()
+        self.Radio_encoder = Radiomic_encoder(num_features=1781)
+        self.fc_vis = nn.Linear(400, 256)
+        self.fc_radio = nn.Linear(512, 256)
+        self.fusion = CrossAttention(input_dim=1)
+
+        self.classify_head = DenseNet(layer_num=(6, 12, 24, 16), growth_rate=32, in_channels=1, classes=2)
+
+    def forward(self, radio, img):
+        '''
+        :param img: torch.Size([B, 1, 64, 512, 512])
+        :return: torch.Size([B, 2])
+        '''
+        vision_feature = self.Resnet(img)
+        radio_feature = self.Radio_encoder(radio)[0]
+        vision_feature = self.fc_vis(vision_feature)
+        radio_feature = self.fc_radio(radio_feature)
+
+        radio_feature = torch.unsqueeze(radio_feature, dim=-1)
+        vision_feature = torch.unsqueeze(vision_feature, dim=-1)
+
+        global_feature = self.fusion(radio_feature, vision_feature)  # [B,N,1]
 
         global_feature = global_feature.permute(0, 2, 1)
         output = self.classify_head(global_feature)

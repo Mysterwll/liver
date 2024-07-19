@@ -1,30 +1,32 @@
 import torch
-from mamba_ssm import Mamba
+from mamba_ssm import Mamba, Mamba2
 from torch import nn
 
 
 class Omnidirectional_3D_Mamba(nn.Module):
-    def __init__(self, in_channels, d_state=16, d_conv=4, expand=2):
+    def __init__(self, in_channels, d_state=64, d_conv=4):
         super(Omnidirectional_3D_Mamba, self).__init__()
-        self.mamba = nn.ModuleList([Mamba(in_channels, d_state, d_conv, expand) for _ in range(3)])
+        expand = int(64 / in_channels)
+        print(expand)
+        self.mamba = nn.ModuleList([Mamba2(d_model=in_channels, d_state=d_state, d_conv=d_conv, expand=expand, headdim=4) for _ in range(3)])
         self.projection_dim = nn.ModuleList([nn.Sequential(
             nn.ReLU(inplace=True),
             nn.BatchNorm1d(in_channels),
             nn.Linear(in_channels, 1)
         ) for _ in range(3)])
-        self.pool = nn.AdaptiveMaxPool1d(128)
+        self.pool = nn.AdaptiveMaxPool1d(256)
 
     def forward(self, x):
         B, C, D, H, W = x.shape
         elements = D * H * W
 
-        x_flat_D = x.permute(0, 1, 2, 3, 4).reshape(B, C, elements).transpose(-1, -2)
-        x_flat_H = x.permute(0, 1, 3, 4, 2).reshape(B, C, elements).transpose(-1, -2)
-        x_flat_W = x.permute(0, 1, 4, 2, 3).reshape(B, C, elements).transpose(-1, -2)
+        feature_D = x.permute(0, 1, 2, 3, 4).reshape(B, C, elements).transpose(-1, -2)
+        feature_H = x.permute(0, 1, 3, 4, 2).reshape(B, C, elements).transpose(-1, -2)
+        feature_W = x.permute(0, 1, 4, 2, 3).reshape(B, C, elements).transpose(-1, -2)
 
-        feature_D = self.mamba[0](x_flat_D)
-        feature_H = self.mamba[1](x_flat_H)
-        feature_W = self.mamba[2](x_flat_W)
+        feature_D = self.mamba[0](feature_D)
+        feature_H = self.mamba[1](feature_H)
+        feature_W = self.mamba[2](feature_W)
 
         feature_D = feature_D.view(-1, C)
         feature_H = feature_H.view(-1, C)

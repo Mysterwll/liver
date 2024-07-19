@@ -26,9 +26,9 @@ class Runtime_Observer:
         self.log_ptr.write('exp:' + str(_kwargs['name']) + '  seed -> ' + str(_kwargs['seed']))
         self.early_stopping = EarlyStopping(patience=50, verbose=True)
 
-    def update(self, prediction, label):
+    def update(self, prediction, label, confidence_scores):
         self.test_acc.update(prediction, label)
-        self.test_auc.update(prediction, label)
+        self.test_auc.update(confidence_scores, label)
         self.test_recall.update(prediction, label)
         self.test_precision.update(prediction, label)
         self.test_F1.update(prediction, label)
@@ -60,12 +60,15 @@ class Runtime_Observer:
         self.summary.add_scalar('val_auc', total_auc, epoch)
         self.summary.add_scalar('val_f1', total_F1, epoch)
 
-        if total_acc >= self.best_dicts['acc']:
+        if total_acc > self.best_dicts['acc']:
             _save()
-            if total_auc >= self.best_dicts['auc']:
+        elif total_acc == self.best_dicts['acc']:
+            if total_auc > self.best_dicts['auc']:
                 _save()
-                if total_auc >= self.best_dicts['f1']:
+            elif total_auc == self.best_dicts['auc']:
+                if total_auc > self.best_dicts['f1']:
                     _save()
+                elif total_auc == self.best_dicts['f1']:
                     if abs(total_precision - total_recall) <= abs(self.best_dicts['p'] - self.best_dicts['recall']):
                         _save()
 

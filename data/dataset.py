@@ -188,7 +188,7 @@ class Liver_normalization_dataset(torch.utils.data.Dataset):
 
         # usage of vision data
         srcid = self.data_dict[uid]['srcid']
-        img = sitk.ReadImage('./data/img/' + srcid + ".nii.gz")
+        img = sitk.ReadImage('./data/new_img/' + srcid + ".nii.gz")
         array = sitk.GetArrayFromImage(img)
         vision = torch.Tensor(array)
         vision_tensor = torch.unsqueeze(vision, 0)

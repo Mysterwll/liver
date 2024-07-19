@@ -202,13 +202,49 @@ models = {
         'Run': run_main_text_img
     },
     'OmniDirectional3DMamba': {
-        'Name': 'Test for OmniDirectional3DMamba',
+        'Name': 'Test for OmniDirectional3DMamba depth3',
         'Data': './data/summery_new.txt',
         'Batch': 2,
         'Lr': 0.0001,
         'Epoch': 300,
         'Dataset_mode': 'img',
         'Model': Vis_mamba_only,
+        'Optimizer': Adam,
+        'Loss': CrossEntropyLoss,
+        'Run': run_single
+    },
+    'two_model_radio': {
+        'Name': 'two_model_radio',
+        'Data': './data/summery_new.txt',
+        'Batch': 2,
+        'Lr': 0.0001,
+        'Epoch': 300,
+        'Dataset_mode': 'radio_img_label',
+        'Model': Two_model_CrossAttentionFusion_radio,
+        'Optimizer': Adam,
+        'Loss': CrossEntropyLoss,
+        'Run': run_double
+    },
+    'OmniDirectional3DMamba_version2': {
+        'Name': 'OmniDirectional3DMamba Mamba2',
+        'Data': './data/summery_new.txt',
+        'Batch': 2,
+        'Lr': 0.0001,
+        'Epoch': 300,
+        'Dataset_mode': 'img',
+        'Model': Vis_mamba_only,
+        'Optimizer': Adam,
+        'Loss': CrossEntropyLoss,
+        'Run': run_single
+    },
+    'ROI_vision_only': {
+        'Name': 'ROIdataset test',
+        'Data': './data/summery_new.txt',
+        'Batch': 2,
+        'Lr': 0.0001,
+        'Epoch': 300,
+        'Dataset_mode': 'img',
+        'Model': Vis_only,
         'Optimizer': Adam,
         'Loss': CrossEntropyLoss,
         'Run': run_single

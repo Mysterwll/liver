@@ -1,4 +1,5 @@
 import argparse
+import time
 from datetime import datetime
 from pathlib import Path
 from sklearn.model_selection import KFold
@@ -88,18 +89,21 @@ def prepare_to_train(model_index, seed, device, fold, data_parallel):
         criterion = experiment_settings['Loss']()
 
     print("prepare completed! launch training!\U0001F680")
+    observer.log(f"\nInitial memory allocated: {torch.cuda.memory_allocated(device='cuda') / (1024 ** 2):.2f} MB\n")
 
     # launch
+    start_time = time.time()
     _run = experiment_settings['Run']
     _run(observer, experiment_settings['Epoch'], trainDataLoader, testDataLoader, model, device, optimizer, criterion)
-
+    end_time = time.time()
+    observer.log(f"\nRunning time: {end_time - start_time:.2f} / 60 minutes\n")
 
 if __name__ == "__main__":
     # Adding necessary input arguments
     parser = argparse.ArgumentParser(description="add arguments to test")
-    parser.add_argument("--model", default='OmniDirectional3DMamba', type=str, help="model")
+    parser.add_argument("--model", default='ROI_vision_only', type=str, help="model")
     parser.add_argument("--seed", default=42, type=int, help="seed given by LinkStart.py on cross Val")
-    parser.add_argument("--device", default='cuda:1', type=str)
+    parser.add_argument("--device", default='cuda', type=str)
     parser.add_argument("--fold", default=0, type=int, help="0~4")
     parser.add_argument("--data_parallel", default=0, type=int, help="test on server")
     args = parser.parse_args()
