@@ -548,39 +548,35 @@ class ResNet_2(nn.Module):
         return x
     
     
-class ResNet_transfer(nn.Module):
+class SimpleFF(nn.Module):
 
-    def __init__(self, num_classes=2, n_slfeat=20):
-        super(ResNet_transfer, self).__init__()
+    def __init__(self, num_classes=2, n_slfeat=1781):
+        super(SimpleFF, self).__init__()
         self.model_pre = ResNet(BottleNeck, [3, 4, 6, 3], num_classes=8)
 
         # self.model_pre.fc = nn.Linear(512, 8)
         self.fc_added1 = nn.Linear(8+n_slfeat, 8)
         self.fc_added2 = nn.Linear(8, num_classes)
     
-    def forward(self, x, slafeat):
+    def forward(self, slafeat, x):
         '''
-        :param x: torch.Size([B, 1, 64, 512, 512])
-        :param slafeat: torch.Size([B, 1781])
+        :param x: torch.Size([1, 1, 64, 512, 512])
+        :param slafeat: torch.Size([1, 1781])
         :return: torch.Size([B, 2])
         '''
-        # B, _, D, H, W = x.size()
-       
-        # x = x.permute(0, 2, 1, 3, 4).contiguous().view(B * D, 1, H, W)
-        # x = self.backbone(x)
-        
-        # x = x.view(B, D, -1)  # (B, D, num_classes)
-        
-        # x, _ = torch.max(x, dim=1)  
+        x = x[:,:,[28,30,32,34,36],:,:].squeeze(0)
+        x = x.permute(1, 0, 2, 3)   # [5, 1, 512, 512]
 
-        x = x[:,:,32,:,:].squeeze(2)
-
-        x = self.model_pre(x)    
+        x = self.model_pre(x)       # [5, 8]
+        slafeat = slafeat.repeat(5, 1)
+ 
         x = torch.cat((x, slafeat),1)
         x = self.fc_added1(x)
         x = self.fc_added2(x)
 
-        return x
+        x = nn.Softmax(dim=1)(x)
+        x = torch.sum(x,dim=0)/5
+        return x.unsqueeze(0)
     
 #------------------------------------------------------------------------------------------------------------------
 """

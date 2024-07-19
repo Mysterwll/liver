@@ -153,6 +153,18 @@ models = {
         'Loss': CrossEntropyLoss,
         'Run': run
     },
+    'SimpleFF': {
+        'Name': 'SimpleFF',
+        'Data': './data/summery_new.txt',
+        'Batch': 1,
+        'Lr': 0.0001,
+        'Epoch': 300,
+        'Dataset_mode': 'radio_img_label',
+        'Model': SimpleFF,
+        'Optimizer': Adam,
+        'Loss': CrossEntropyLoss,
+        'Run': run_fusion_radio_img
+    },
     'HFBSurv': {
         'Name': 'HFBSurv',
         'Data': './data/summery_new.txt',

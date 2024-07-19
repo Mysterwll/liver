@@ -1,9 +1,9 @@
 import torchmetrics
 from torch.utils.tensorboard import SummaryWriter
-
+import torch
 
 class Runtime_Observer:
-    def __init__(self, log_dir, device='cuda', **kwargs):
+    def __init__(self, log_dir, checkpoints_dir, device='cuda', **kwargs):
         """
         The Observer of training, which contains a log file(.txt), computing tools(torchmetrics) and tensorboard writer
         :author windbell
@@ -14,6 +14,7 @@ class Runtime_Observer:
         self.best_dicts = {'epoch': 0, 'acc': 0, 'auc': 0, 'f1': 0, 'p': 0, 'recall': 0}
         self.log_dir = str(log_dir)
         self.log_ptr = open(self.log_dir + '/log.txt', 'w')
+        self.checkpoints_dir = str(checkpoints_dir)
         _kwargs = {'name': kwargs['name'] if kwargs.__contains__('name') else 'None',
                    'seed': kwargs['seed'] if kwargs.__contains__('seed') else 'None'}
 
@@ -37,7 +38,7 @@ class Runtime_Observer:
         print(info)
         self.log_ptr.write(info)
 
-    def excute(self, epoch):
+    def excute(self, epoch, model):
         def _save():
             self.best_dicts['acc'] = total_acc
             self.best_dicts['epoch'] = epoch
@@ -45,6 +46,7 @@ class Runtime_Observer:
             self.best_dicts['f1'] = total_F1
             self.best_dicts['p'] = total_precision
             self.best_dicts['recall'] = total_recall
+            torch.save(model.state_dict(), self.checkpoints_dir + '/best_model.pth')
 
         total_acc = self.test_acc.compute()
         total_recall = self.test_recall.compute()
@@ -60,16 +62,26 @@ class Runtime_Observer:
         self.summary.add_scalar('val_auc', total_auc, epoch)
         self.summary.add_scalar('val_f1', total_F1, epoch)
 
+        # if total_acc >= self.best_dicts['acc']:
+        #     _save()
+        #     if total_auc >= self.best_dicts['auc']:
+        #         _save()
+        #         if total_auc >= self.best_dicts['f1']:
+        #             _save()
+        #             if abs(total_precision - total_recall) <= abs(self.best_dicts['p'] - self.best_dicts['recall']):
+        #                 _save()
+
+
         if total_acc > self.best_dicts['acc']:
             _save()
         elif total_acc == self.best_dicts['acc']:
             if total_auc > self.best_dicts['auc']:
                 _save()
             elif total_auc == self.best_dicts['auc']:
-                if total_auc > self.best_dicts['f1']:
+                if total_F1 > self.best_dicts['f1']:
                     _save()
-                elif total_auc == self.best_dicts['f1']:
-                    if abs(total_precision - total_recall) <= abs(self.best_dicts['p'] - self.best_dicts['recall']):
+                elif total_F1 == self.best_dicts['f1']:
+                    if abs(total_precision - total_recall) < abs(self.best_dicts['p'] - self.best_dicts['recall']):
                         _save()
 
         log_info = "-------\n" + "Epoch %d:\n" % (epoch + 1) \

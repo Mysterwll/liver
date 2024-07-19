@@ -50,15 +50,17 @@ def prepare_to_train(model_index, seed, device, fold, data_parallel):
     target_dir.mkdir(exist_ok=True)
     target_dir = target_dir.joinpath('classification')
     target_dir.mkdir(exist_ok=True)
+    target_dir = target_dir.joinpath(experiment_settings['Name'])
+    target_dir.mkdir(exist_ok=True)
     current_time = str(datetime.now().strftime('%Y-%m-%d_%H-%M'))
-    target_dir = target_dir.joinpath(experiment_settings['Name'] + current_time)
+    target_dir = target_dir.joinpath('fold_{}'.format(fold) + current_time)
     target_dir.mkdir(exist_ok=True)
     checkpoints_dir = target_dir.joinpath('checkpoints')
     checkpoints_dir.mkdir(exist_ok=True)
     log_dir = target_dir.joinpath('logs')
     log_dir.mkdir(exist_ok=True)
 
-    observer = Runtime_Observer(log_dir=log_dir, device=device, name=experiment_settings['Name'], seed=seed)
+    observer = Runtime_Observer(log_dir=log_dir, checkpoints_dir= checkpoints_dir, device=device, name=experiment_settings['Name'], seed=seed)
     observer.log(f'[DEBUG]Observer init successfully, program start @{current_time}\n')
     '''
     Model load

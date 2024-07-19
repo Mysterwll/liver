@@ -176,9 +176,12 @@ def run_fusion_radio_img(observer, epochs, train_loader, test_loader, model, dev
                 img = img.to(device)
                 label = label.to(device)
                 outputs = model(radio, img)
-                _, predictions = torch.max(outputs, dim=1)
-                observer.update(predictions, label)
-        observer.excute(epoch)
+                # _, predictions = torch.max(outputs, dim=1)
+                observer.update(outputs, label)
+        
+        if observer.excute(epoch):       
+            print("Early stopping")
+            break
     observer.finish()
 
 
@@ -297,55 +300,13 @@ def run_main_1(observer, epochs, train_loader, test_loader, model, device, optim
                 label = label.to(device)
                 _, _, _, outputs = model(input_ids=token, attention_mask=mask, token_type_ids=segment, radio=radio,
                                       img=img)
-                _, predictions = torch.max(outputs, dim=1)
-                observer.update(predictions, label)
+                # _, predictions = torch.max(outputs, dim=1)
+                observer.update(outputs, label)
 
-        if observer.excute(epoch):       
+        if observer.excute(epoch, model):       
             print("Early stopping")
             break
     observer.finish()
-
-
-def run_main_1(observer, epochs, train_loader, test_loader, model, device, optimizer, criterion):
-    model = model.to(device)
-    print("start training")
-    for epoch in range(epochs):
-        print(f"Epoch: {epoch + 1}/{epochs}")
-        observer.reset()
-        model.train()
-        train_bar = tqdm(train_loader, leave=True, file=sys.stdout)
-
-        for i, (token, segment, mask, radio, img, label) in enumerate(train_bar):
-            optimizer.zero_grad()
-            token, segment, mask = token.to(device), segment.to(device), mask.to(device)
-            img = img.to(device)
-            radio = radio.to(device)
-            label = label.to(device)
-            radio_feature, vision_feature, cli_feature, outputs = model(input_ids=token, attention_mask=mask, token_type_ids=segment, radio=radio,
-                                      img=img)
-            loss = criterion(radio_feature, vision_feature, cli_feature, label, outputs)
-            loss.backward()
-            optimizer.step()
-
-        with torch.no_grad():
-            model.eval()
-            test_bar = tqdm(test_loader, leave=True, file=sys.stdout)
-
-            for i, (token, segment, mask, radio, img, label) in enumerate(test_bar):
-                token, segment, mask = token.to(device), segment.to(device), mask.to(device)
-                img = img.to(device)
-                radio = radio.to(device)
-                label = label.to(device)
-                _, _, _, outputs = model(input_ids=token, attention_mask=mask, token_type_ids=segment, radio=radio,
-                                      img=img)
-                _, predictions = torch.max(outputs, dim=1)
-                observer.update(predictions, label)
-
-        if observer.excute(epoch):
-            print("Early stopping")
-            break
-    observer.finish()
-
 
 def run_main_text_img(observer, epochs, train_loader, test_loader, model, device, optimizer, criterion):
     model = model.to(device)
