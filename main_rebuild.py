@@ -60,7 +60,7 @@ def prepare_to_train(model_index, seed, device, fold, data_parallel):
     log_dir = target_dir.joinpath('logs')
     log_dir.mkdir(exist_ok=True)
 
-    observer = Runtime_Observer(log_dir=log_dir, checkpoints_dir= checkpoints_dir, device=device, name=experiment_settings['Name'], seed=seed)
+    observer = Runtime_Observer(log_dir=log_dir, device=device, name=experiment_settings['Name'], seed=seed, checkpoints_dir=checkpoints_dir)
     observer.log(f'[DEBUG]Observer init successfully, program start @{current_time}\n')
     '''
     Model load
@@ -71,7 +71,9 @@ def prepare_to_train(model_index, seed, device, fold, data_parallel):
     if torch.cuda.device_count() > 1 and data_parallel == 1:
         observer.log("Using" + str(torch.cuda.device_count()) + "GPUs for training.\n")
         model = torch.nn.DataParallel(model)
-    observer.log(f'Use model : {str(experiment_settings)}\n')
+    observer.log('Experiment settings: \n')
+    for item in experiment_settings.items():
+        observer.log(f"{item[0]}: {item[1]}\n")
     num_params = 0
     for p in model.parameters():
         if p.requires_grad:
@@ -103,7 +105,7 @@ def prepare_to_train(model_index, seed, device, fold, data_parallel):
 if __name__ == "__main__":
     # Adding necessary input arguments
     parser = argparse.ArgumentParser(description="add arguments to test")
-    parser.add_argument("--model", default='ROI_vision_only', type=str, help="model")
+    parser.add_argument("--model", default='ROI_vision_only_mamba', type=str, help="model")
     parser.add_argument("--seed", default=42, type=int, help="seed given by LinkStart.py on cross Val")
     parser.add_argument("--device", default='cuda', type=str)
     parser.add_argument("--fold", default=0, type=int, help="0~4")

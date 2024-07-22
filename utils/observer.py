@@ -3,7 +3,7 @@ from torch.utils.tensorboard import SummaryWriter
 import torch
 
 class Runtime_Observer:
-    def __init__(self, log_dir, checkpoints_dir, device='cuda', **kwargs):
+    def __init__(self, log_dir, device='cuda', **kwargs):
         """
         The Observer of training, which contains a log file(.txt), computing tools(torchmetrics) and tensorboard writer
         :author windbell
@@ -14,9 +14,16 @@ class Runtime_Observer:
         self.best_dicts = {'epoch': 0, 'acc': 0, 'auc': 0, 'f1': 0, 'p': 0, 'recall': 0}
         self.log_dir = str(log_dir)
         self.log_ptr = open(self.log_dir + '/log.txt', 'w')
-        self.checkpoints_dir = str(checkpoints_dir)
-        _kwargs = {'name': kwargs['name'] if kwargs.__contains__('name') else 'None',
-                   'seed': kwargs['seed'] if kwargs.__contains__('seed') else 'None'}
+
+        _kwargs = {'name': kwargs['name'] if kwargs.__contains__('name') else None,
+                   'seed': kwargs['seed'] if kwargs.__contains__('seed') else None,
+                   'checkpoints_dir': kwargs['checkpoints_dir'] if kwargs.__contains__('checkpoints_dir') else None}
+
+        if _kwargs['checkpoints_dir'] is not None:
+            self.checkpoints_dir = str(_kwargs['checkpoints_dir'])
+            self.flag_save = True
+        else:
+            self.flag_save = False
 
         self.test_acc = torchmetrics.Accuracy(num_classes=2, task='binary').to(device)
         self.test_recall = torchmetrics.Recall(num_classes=2, task='binary').to(device)
@@ -46,7 +53,8 @@ class Runtime_Observer:
             self.best_dicts['f1'] = total_F1
             self.best_dicts['p'] = total_precision
             self.best_dicts['recall'] = total_recall
-            torch.save(model.state_dict(), self.checkpoints_dir + '/best_model.pth')
+            if self.flag_save:
+                torch.save(model.state_dict(), self.checkpoints_dir + '/best_model.pth')
 
         total_acc = self.test_acc.compute()
         total_recall = self.test_recall.compute()
