@@ -261,4 +261,16 @@ models = {
         'Loss': CrossEntropyLoss,
         'Run': run_single
     },
+    'ROI_vision_only_mamba': {
+        'Name': 'ROIdataset test',
+        'Data': './data/summery_new.txt',
+        'Batch': 2,
+        'Lr': 0.0001,
+        'Epoch': 300,
+        'Dataset_mode': 'img',
+        'Model': Vis_mamba_only,
+        'Optimizer': Adam,
+        'Loss': CrossEntropyLoss,
+        'Run': run_single
+    },
 }

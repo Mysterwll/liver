@@ -672,7 +672,7 @@ class Vis_mamba_only(nn.Module):
             nn.ReLU(inplace=True)
         )
         self.conv2 = nn.Sequential(
-            nn.Conv3d(in_channels=8, out_channels=8, kernel_size=3, padding=1, stride=2),
+            nn.Conv3d(in_channels=4, out_channels=8, kernel_size=3, padding=1, stride=2),
             nn.BatchNorm3d(8),
             nn.ReLU(inplace=True)
         )
@@ -681,14 +681,14 @@ class Vis_mamba_only(nn.Module):
             nn.BatchNorm3d(16),
             nn.ReLU(inplace=True)
         )
-        self.mamba_layer = Omnidirectional_3D_Mamba(in_channels=4)
+        # self.mamba_layer = Omnidirectional_3D_Mamba(in_channels=4)
         self.mamba_layer2 = Omnidirectional_3D_Mamba(in_channels=8)
         self.mamba_layer3 = Omnidirectional_3D_Mamba(in_channels=16)
         # self.classify_head = DenseNet(layer_num=(1, 3, 6, 4), growth_rate=4, in_channels=1, classes=2)
         self.projection = nn.Sequential(
-            nn.BatchNorm1d(256 * 9),
+            nn.BatchNorm1d(256 * 6),
             nn.ReLU(inplace=True),
-            nn.Linear(256 * 9, 256)
+            nn.Linear(256 * 6, 256)
         )
         self.mlp = nn.Linear(256, 2)
 
@@ -698,14 +698,12 @@ class Vis_mamba_only(nn.Module):
         :return: torch.Size([B, 2])
         '''
         x = self.conv(x)
-        feature_level_1 = self.mamba_layer(x)
+        # feature_level_1 = self.mamba_layer(x)
         x = self.conv2(x)
         feature_level_2 = self.mamba_layer2(x)
         x = self.conv3(x)
         feature_level_3 = self.mamba_layer3(x)
-        # print(
-        #     f"Memory allocated after tensor creation1: {torch.cuda.memory_allocated(device='cuda:1') / (1024 ** 2):.2f} MB")
-        global_feature = torch.cat([feature_level_1, feature_level_2, feature_level_3], dim=-1)
+        global_feature = torch.cat([feature_level_2, feature_level_3], dim=-1)
         global_feature = torch.squeeze(global_feature, dim=-2)
         global_feature = self.projection(global_feature)
         return self.mlp(global_feature)
